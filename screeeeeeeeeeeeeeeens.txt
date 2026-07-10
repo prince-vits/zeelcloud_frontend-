@@ -1,0 +1,122 @@
+============================================================
+  ZeelCloud React Native App — Screen List
+  Total Screens: 35
+  Expo Server: http://localhost:8082
+============================================================
+
+─────────────────────────────────────
+  AUTH (2 screens)
+─────────────────────────────────────
+  1.  SplashScreen            — App launch / loading screen
+  2.  LoginScreen             — Username + password login with biometric option
+
+─────────────────────────────────────
+  HOME (2 screens)
+─────────────────────────────────────
+  3.  CompanyScreen           — Select active company from list
+  4.  HomeScreen              — Dashboard with summary cards + module grid
+
+─────────────────────────────────────
+  SALES OUTSTANDING (9 screens)
+─────────────────────────────────────
+  5.  SalesOsFilterScreen     — Configure report type + date range
+  6.  SalesOsPartyListScreen  — Party-wise OS list with overdue badges
+  7.  SalesOsPartyDetailScreen— Party invoices, credit limit, call/share
+  8.  SalesOsBrokerListScreen — Broker-wise OS list
+  9.  SalesOsBrokerDetailScreen— Broker detail with parties
+  10. SalesOsAreaListScreen   — Area-wise OS list
+  11. SalesOsAreaDetailScreen — Area detail with parties
+  12. SalesOsPartyGroupListScreen — Party group-wise OS list
+  13. SalesOsSalesPersonListScreen — Sales person-wise OS list
+
+─────────────────────────────────────
+  PURCHASE OUTSTANDING (3 screens)
+─────────────────────────────────────
+  14. PurchaseOsFilterScreen  — Configure purchase OS report
+  15. PurchaseOsPartyListScreen— Supplier-wise OS list
+  16. PurchaseOsPartyDetailScreen— Supplier invoices and detail
+
+─────────────────────────────────────
+  SALES REGISTER (2 screens)
+─────────────────────────────────────
+  17. SalesRegisterScreen     — Sales register with date filter + list
+  18. SalesRegisterDetailScreen— Full invoice detail view
+
+─────────────────────────────────────
+  PURCHASE REGISTER (2 screens)
+─────────────────────────────────────
+  19. PurchaseRegisterScreen  — Purchase register with date filter + list
+  20. PurchaseRegisterDetailScreen— Full purchase invoice detail
+
+─────────────────────────────────────
+  GP REGISTER (2 screens)
+─────────────────────────────────────
+  21. GpRegisterScreen        — Grey process register list
+  22. GpRegisterDetailScreen  — GP entry detail (gray qty, beam qty, process)
+
+─────────────────────────────────────
+  STOCK (4 screens)
+─────────────────────────────────────
+  23. StockScreen             — Stock overview with Yarn / Beam / Non-Issue tabs
+  24. YarnStockScreen         — Yarn stock itemwise (quality, lot, kg, value)
+  25. BeamStockScreen         — Beam stock itemwise (quality, pieces, status)
+  26. NonIssueStockScreen     — Non-issue stock categories
+
+─────────────────────────────────────
+  NON-ISSUE REPORTS (4 screens)
+─────────────────────────────────────
+  27. NonIssueSelectionScreen — Choose Yarn / Gray / Beam report
+  28. NonIssueYarnScreen      — Yarn non-issue itemwise list
+  29. NonIssueGrayScreen      — Gray fabric non-issue itemwise list
+  30. NonIssueBeamScreen      — Beam non-issue itemwise list
+
+─────────────────────────────────────
+  LEDGER (3 screens)
+─────────────────────────────────────
+  31. LedgerFilterScreen      — Party/account selection + date range
+  32. LedgerListScreen        — Ledger entries with debit/credit/balance
+  33. LedgerDetailScreen      — Single ledger entry full detail
+
+─────────────────────────────────────
+  GENERAL (2 screens)
+─────────────────────────────────────
+  34. AboutScreen             — App version, company info, developer credits
+  35. ContactScreen           — Phone / email / address with action buttons
+
+============================================================
+  HOW TO RUN
+============================================================
+
+  Metro bundler is already running at: http://localhost:8082
+
+  To open on your phone:
+    1. Install "Expo Go" from App Store (iOS) or Play Store (Android)
+    2. Run in terminal:
+         cd /Users/macbookpro/Downloads/ZeelCloud-develop/ZeelCloudRN
+         npx expo start
+    3. Scan the QR code shown in terminal with your phone camera
+
+  To run on iOS Simulator:
+    npx expo start --ios
+
+  To run on Android Emulator:
+    npx expo start --android
+
+============================================================
+  PROJECT STRUCTURE
+============================================================
+
+  ZeelCloudRN/
+  ├── App.tsx
+  ├── src/
+  │   ├── theme/          — Colors, Typography, Spacing, Shadows
+  │   ├── types/          — TypeScript interfaces + nav param types
+  │   ├── data/           — Mock data (replaces API until you provide endpoints)
+  │   ├── store/          — Zustand stores (auth, company)
+  │   ├── services/       — API stubs (ready for real endpoints)
+  │   ├── components/     — 10 reusable components
+  │   ├── navigation/     — Root + Drawer + 9 stack navigators
+  │   └── screens/        — 35 screens across 10 modules
+  └── screeeeeeeeeeeeeeeens.txt  ← you are here
+
+============================================================
