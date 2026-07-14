@@ -719,7 +719,11 @@ export const itemsApi = {
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 
 const mapAccountParty = (row: Record<string, unknown>): AccountParty => ({
-  id: typeof row.id === 'number' ? row.id : Number(row.id ?? 0),
+  id: typeof row.vn_party_id === 'number' 
+    ? row.vn_party_id 
+    : typeof row.vn_account_id === 'number'
+      ? row.vn_account_id
+      : Number(row.id ?? 0) || 0,
   name: typeof row.vv_party_name === 'string'
     ? row.vv_party_name
     : typeof row.vv_account_name === 'string'
@@ -729,10 +733,8 @@ const mapAccountParty = (row: Record<string, unknown>): AccountParty => ({
 
 export const accountsApi = {
   getAll: async (companyId?: string): Promise<AccountParty[]> => {
-    const params = new URLSearchParams();
-    if (companyId) params.set('company', companyId);
-    const query = params.toString() ? `?${params.toString()}` : '';
-    const payload = await apiFetch<unknown>(`/accounts/${query}`);
+    // Do not pass companyId filter to accounts master, as they are global (vn_company_id = 0)
+    const payload = await apiFetch<unknown>(`/accounts/`);
     return extractDataArray(payload).map(mapAccountParty);
   },
 };

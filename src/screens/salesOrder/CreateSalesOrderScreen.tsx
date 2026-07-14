@@ -224,9 +224,9 @@ export const CreateSalesOrderScreen: React.FC = () => {
         })),
       });
       Alert.alert(
-        'Order Created ✓',
+        'Order Created Successfully ✓',
         `Sales order ${order.orderNo} for ${partyName} (${formatCurrency(order.totalAmount)}) has been created.`,
-        [{ text: 'OK', onPress: () => navigation.navigate('Dashboard') }],
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create sales order';
