@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { mockUser } from '../data/mockData';
+import { authApi } from '../services/api';
 import type { User } from '../types';
 
 interface AuthState {
   user: User | null;
+  token: string | null;
   isLoggedIn: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<boolean>;
@@ -18,30 +19,40 @@ const USER_KEY = 'zeel_user_data';
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  token: null,
   isLoggedIn: false,
   isLoading: false,
 
-  login: async (username: string, password: string): Promise<boolean> => {
-    if (!username.trim() || !password.trim()) {
+  login: async (login: string, password: string): Promise<boolean> => {
+    if (!login.trim() || !password.trim()) {
       return false;
     }
     set({ isLoading: true });
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const token = `mock_token_${Date.now()}`;
     try {
-      await SecureStore.setItemAsync(TOKEN_KEY, token);
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(mockUser));
+      const { token } = await authApi.login(login.trim(), password);
+      const user = await authApi.getProfile(token);
+      set({ user, token, isLoggedIn: true, isLoading: false });
+
+      // Persist the session for the next app launch, but do not block a
+      // successful login if secure storage is unavailable on this device.
+      try {
+        await SecureStore.setItemAsync(TOKEN_KEY, token);
+        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+      } catch {
+        // The signed-in state remains available for the current app session.
+      }
+      return true;
     } catch {
       // SecureStore may fail in some environments — continue anyway
     }
-    set({ user: mockUser, isLoggedIn: true, isLoading: false });
-    return true;
+    set({ isLoading: false });
+    return false;
   },
 
   logout: () => {
     SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
-    set({ user: null, isLoggedIn: false });
+    set({ user: null, token: null, isLoggedIn: false });
   },
 
   restoreSession: async () => {
@@ -50,7 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const userData = await SecureStore.getItemAsync(USER_KEY);
       if (token && userData) {
         const user = JSON.parse(userData) as User;
-        set({ user, isLoggedIn: true });
+        set({ user, token, isLoggedIn: true });
       }
     } catch {
       // No stored session

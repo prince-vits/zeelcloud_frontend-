@@ -14,6 +14,7 @@ export const NonIssueGrayScreen: React.FC<Props> = ({ navigation, route }) => (
   <StockReportView
     title="Gray"
     category="nonIssue"
+    stockSource="sequance"
     columns={grayColumns}
     reportType={route.params.reportType}
     searchPlaceholder="Search gray fabric..."

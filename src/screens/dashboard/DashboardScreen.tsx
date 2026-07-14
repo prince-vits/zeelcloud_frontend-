@@ -9,32 +9,54 @@ import { CompanySwitcher } from '../../components/CompanySwitcher';
 import { BookmarkEditModal } from '../../components/BookmarkEditModal';
 import { useBookmarkStore } from '../../store/bookmarkStore';
 import { APP_MODULES } from '../../data/modules';
-import { dashboardApi } from '../../services/api';
+import { dashboardApi, companyApi } from '../../services/api';
+import { useCompanyStore } from '../../store/companyStore';
 import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
-import type { AppStackParamList, BankAccount, SalesReportPoint } from '../../types';
+import type { AppStackParamList, BankAccount } from '../../types';
+
+interface OsSummary {
+  totalPurchase: number;
+  totalSales: number;
+  totalGp: number;
+}
 
 export const DashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { bookmarks, loadBookmarks } = useBookmarkStore();
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [report, setReport] = useState<SalesReportPoint[]>([]);
+  const { selectedCompany } = useCompanyStore();
+  const [osSummary, setOsSummary] = useState<OsSummary>({ totalPurchase: 0, totalSales: 0, totalGp: 0 });
   const [editingBookmarks, setEditingBookmarks] = useState(false);
 
   useEffect(() => {
-    dashboardApi.getBankAccounts().then(setAccounts);
-    dashboardApi.getSalesReport().then(setReport);
     loadBookmarks();
-  }, []);
+  }, [loadBookmarks]);
+
+  useEffect(() => {
+    if (selectedCompany?.recordId) {
+      companyApi.getSummary(String(selectedCompany.recordId)).then(setOsSummary).catch(() => {});
+    } else {
+      setOsSummary({ totalPurchase: 0, totalSales: 0, totalGp: 0 });
+    }
+  }, [selectedCompany?.recordId]);
 
   // Resolve saved bookmark keys into module definitions (in saved order).
   const bookmarkedModules = bookmarks
     .map((k) => APP_MODULES.find((m) => m.key === k))
     .filter((m): m is (typeof APP_MODULES)[number] => Boolean(m));
 
-  const totalBalance = accounts.reduce((sum, a) => sum + a.amount, 0);
-  const maxVal = Math.max(1, ...report.flatMap((p) => [p.thisWeek, p.lastWeek]));
+  const accounts = selectedCompany?.banks || [];
+  const totalBalance = accounts.reduce((sum, a) => sum + (a.dc === 'DB' ? a.balance : -a.balance), 0);
+
+  // Build chart bars from real OS totals
+  const osBars = [
+    { label: 'Purchase', value: osSummary.totalPurchase, color: '#7C3AED' },
+    { label: 'Sales', value: osSummary.totalSales, color: '#2563EB' },
+    { label: 'GP', value: osSummary.totalGp, color: '#10B981' },
+
+  ];
+  const maxVal = Math.max(1, ...osBars.map((b) => b.value));
 
   return (
     <View style={styles.container}>
@@ -51,16 +73,18 @@ export const DashboardScreen: React.FC = () => {
         {/* Bank & Cash Balance */}
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>Bank &amp; Cash Balance</Text>
-          {accounts.map((acc) => (
-            <View key={acc.id} style={styles.balanceRow}>
+          {accounts.map((acc, index) => (
+            <View key={index} style={styles.balanceRow}>
               <View style={styles.balanceLeft}>
                 <View style={styles.balanceDot} />
                 <View>
                   <Text style={styles.balanceName} numberOfLines={1}>{acc.name}</Text>
-                  {acc.accountNo ? <Text style={styles.balanceAcc}>A/C {acc.accountNo}</Text> : null}
+                  <Text style={styles.balanceAcc}>{acc.dc === 'DB' ? 'Debit' : 'Credit'}</Text>
                 </View>
               </View>
-              <Text style={styles.balanceAmount}>{formatCurrency(acc.amount)}</Text>
+              <Text style={styles.balanceAmount}>
+                {acc.dc === 'DB' ? formatCurrency(acc.balance) : `-${formatCurrency(acc.balance)}`}
+              </Text>
             </View>
           ))}
           <View style={styles.totalRow}>
@@ -100,33 +124,30 @@ export const DashboardScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Sales Report Overview */}
+        {/* Outstanding Summary */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Sales Report Overview</Text>
+          <Text style={styles.sectionTitle}>Outstanding Summary</Text>
           <View style={styles.periodPill}>
-            <Text style={styles.periodText}>This Week</Text>
-            <Icon name="chevron-down" size={14} color={Colors.textSecondary} />
+            <Text style={styles.periodText}>All Time</Text>
           </View>
         </View>
         <Card style={styles.chartCard}>
           <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: Colors.primary }]} />
-              <Text style={styles.legendText}>This Week</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: Colors.primaryLight }]} />
-              <Text style={styles.legendText}>Last Week</Text>
-            </View>
+            {osBars.map((b) => (
+              <View key={b.label} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: b.color }]} />
+                <Text style={styles.legendText}>{b.label}</Text>
+              </View>
+            ))}
           </View>
           <View style={styles.chart}>
-            {report.map((p) => (
-              <View key={p.label} style={styles.barGroup}>
+            {osBars.map((b) => (
+              <View key={b.label} style={styles.barGroup}>
                 <View style={styles.barPair}>
-                  <View style={[styles.bar, { height: `${(p.thisWeek / maxVal) * 100}%`, backgroundColor: Colors.primary }]} />
-                  <View style={[styles.bar, { height: `${(p.lastWeek / maxVal) * 100}%`, backgroundColor: Colors.primaryLight }]} />
+                  <View style={[styles.bar, { height: `${(b.value / maxVal) * 100}%`, backgroundColor: b.color }]} />
                 </View>
-                <Text style={styles.barLabel}>{p.label}</Text>
+                <Text style={styles.barLabel}>{b.label}</Text>
+                <Text style={styles.barValue}>{formatCurrency(b.value)}</Text>
               </View>
             ))}
           </View>
@@ -250,11 +271,12 @@ const styles = StyleSheet.create({
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    height: 160,
+    justifyContent: 'space-around',
+    height: 180,
   },
   barGroup: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
   barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 130 },
-  bar: { width: 9, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: 3 },
+  bar: { width: 28, borderTopLeftRadius: 6, borderTopRightRadius: 6, minHeight: 4 },
   barLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 6 },
+  barValue: { fontSize: 9, color: Colors.textMuted, marginTop: 2, textAlign: 'center' },
 });

@@ -7,6 +7,7 @@ import { GradientHeader } from '../../components/GradientHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { ledgerApi } from '../../services/api';
+import { useCompanyStore } from '../../store/companyStore';
 import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { AppStackParamList, BankAccount } from '../../types';
@@ -16,18 +17,19 @@ const maskAccount = (accountNo?: string) =>
 
 export const BankCashLedgerScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { selectedCompany } = useCompanyStore();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [skipZero, setSkipZero] = useState(false);
 
   useEffect(() => {
-    ledgerApi.getBankAccounts()
+    ledgerApi.getBankAccounts(selectedCompany?.id)
       .then((data) => {
         setAccounts(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [selectedCompany?.id]);
 
   const visible = skipZero ? accounts.filter((a) => a.amount !== 0) : accounts;
 

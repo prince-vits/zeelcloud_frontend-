@@ -6,6 +6,7 @@ import { Card } from '../../components/Card';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { stockApi } from '../../services/api';
+import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing } from '../../theme';
 import type { StockItem, StockReportType } from '../../types';
 
@@ -19,6 +20,7 @@ export interface StockColumn {
 export interface StockReportViewProps {
   title: string;
   category: 'yarn' | 'beam' | 'nonIssue';
+  stockSource?: 'yarn' | 'beam' | 'gray' | 'sequance';
   columns: StockColumn[];
   reportType: StockReportType;
   searchPlaceholder: string;
@@ -45,6 +47,7 @@ const formatValue = (item: StockItem, col: StockColumn): string => {
 export const StockReportView: React.FC<StockReportViewProps> = ({
   title,
   category,
+  stockSource,
   columns,
   reportType,
   searchPlaceholder,
@@ -52,19 +55,20 @@ export const StockReportView: React.FC<StockReportViewProps> = ({
   onBack,
   rowEmoji,
 }) => {
+  const { selectedCompany } = useCompanyStore();
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    setLoading(true);
     stockApi
-      .getByCategory(category)
+      .getByCategory(category, selectedCompany?.id, reportType, stockSource)
       .then((data) => {
         setItems(data);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, [category]);
+      .finally(() => setLoading(false));
+  }, [category, selectedCompany?.id, reportType, stockSource]);
 
   const lowerSearch = search.toLowerCase();
   const filtered = items.filter(

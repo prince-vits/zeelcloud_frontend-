@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -14,7 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { SearchBar } from '../../components/SearchBar';
 import { PrimaryButton } from '../../components/PrimaryButton';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useSubUserStore } from '../../store/subUserStore';
+import { useAuthStore } from '../../store/authStore';
+import { confirmAction, showAlert } from '../../utils/alert';
 import { getInitials } from '../../utils/strings';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { SubUser, SubUserStackParamList } from '../../types';
@@ -22,12 +24,30 @@ import type { SubUser, SubUserStackParamList } from '../../types';
 export const SubUserListScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<SubUserStackParamList>>();
-  const { subUsers, isLoading, loaded, fetchSubUsers, deleteSubUser } = useSubUserStore();
+  const { subUsers, isLoading, loaded, fetchSubUsers, deactivateSubUserViaAPI } = useSubUserStore();
+  const user = useAuthStore((state) => state.user);
   const [search, setSearch] = useState('');
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const isAdmin = user?.isSubuser === false && user.parentUserId === null;
 
   useEffect(() => {
-    if (!loaded) fetchSubUsers();
-  }, [loaded]);
+    if (isAdmin && !loaded) fetchSubUsers();
+  }, [isAdmin, loaded, fetchSubUsers]);
+
+  if (!isAdmin) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+          <Text style={styles.headerTitle}>Sub User Management</Text>
+        </View>
+        <View style={styles.restricted}>
+          <Icon name="shield-lock-outline" size={48} color={Colors.gray300} />
+          <Text style={styles.restrictedTitle}>Admin access required</Text>
+          <Text style={styles.restrictedText}>Only an admin or super user can view and manage sub users.</Text>
+        </View>
+      </View>
+    );
+  }
 
   const lower = search.toLowerCase();
   const filtered = subUsers.filter(
@@ -36,28 +56,45 @@ export const SubUserListScreen: React.FC = () => {
       u.username.toLowerCase().includes(lower),
   );
 
-  const confirmDelete = (user: SubUser) => {
-    Alert.alert('Delete Sub User', `Remove ${user.name}? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteSubUser(user.id) },
-    ]);
+  const confirmDeactivate = (subUser: SubUser) => {
+    if (!subUser.isActive) return;
+
+    confirmAction(
+      'Deactivate Sub User',
+      `Deactivate ${subUser.name}? They will no longer be able to sign in.`,
+      async () => {
+        setDeactivatingId(subUser.id);
+        try {
+          await deactivateSubUserViaAPI(subUser.id);
+          showAlert('Sub User Deactivated', `${subUser.name} has been deactivated.`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to deactivate sub user';
+          showAlert('Deactivate Failed', errorMessage);
+        } finally {
+          setDeactivatingId(null);
+        }
+      },
+      { confirmText: 'Deactivate', destructive: true },
+    );
   };
 
   const renderItem = ({ item }: { item: SubUser }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.85}
-      onPress={() => navigation.navigate('SubUserDetail', { userId: item.id })}
-    >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
-        <View style={[styles.statusDot, { backgroundColor: item.isActive ? Colors.success : Colors.gray400 }]} />
-      </View>
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
-        <Text style={styles.company} numberOfLines={1}>{item.companyName}</Text>
-      </View>
+    <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.mainPress}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('SubUserDetail', { userId: item.id })}
+      >
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
+          <View style={[styles.statusDot, { backgroundColor: item.isActive ? Colors.success : Colors.gray400 }]} />
+        </View>
+        <View style={styles.info}>
+          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
+          <Text style={styles.company} numberOfLines={1}>{item.companyName || '—'}</Text>
+        </View>
+      </TouchableOpacity>
       <View style={styles.actions}>
         <TouchableOpacity
           style={[styles.actionBtn, styles.viewBtn]}
@@ -73,20 +110,22 @@ export const SubUserListScreen: React.FC = () => {
         >
           <Icon name="pencil-outline" size={18} color={Colors.warning} />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.deleteBtn]}
-          onPress={() => confirmDelete(item)}
-          activeOpacity={0.7}
-        >
-          <Icon name="trash-can-outline" size={18} color={Colors.danger} />
-        </TouchableOpacity>
+        {item.isActive ? (
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.deleteBtn]}
+            onPress={() => confirmDeactivate(item)}
+            activeOpacity={0.7}
+            disabled={deactivatingId === item.id}
+          >
+            <Icon name="account-off-outline" size={18} color={Colors.danger} />
+          </TouchableOpacity>
+        ) : null}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <Text style={styles.headerTitle}>Sub User Management</Text>
         <Text style={styles.headerSub}>Manage and control access for your sub users</Text>
@@ -128,6 +167,7 @@ export const SubUserListScreen: React.FC = () => {
           </View>
         }
       />
+      {deactivatingId ? <LoadingOverlay message="Deactivating sub user..." /> : null}
     </View>
   );
 };
@@ -182,6 +222,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     ...Shadows.card,
   },
+  mainPress: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   avatar: {
     width: 46,
     height: 46,
@@ -227,4 +272,7 @@ const styles = StyleSheet.create({
   deleteBtn: { backgroundColor: Colors.dangerLight },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: Typography.fontSizes.base, color: Colors.textSecondary },
+  restricted: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.sm },
+  restrictedTitle: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  restrictedText: { fontSize: Typography.fontSizes.base, color: Colors.textSecondary, textAlign: 'center' },
 });

@@ -7,17 +7,45 @@ export interface User {
   role: string;
   email?: string;
   phone?: string;
+  firstName?: string;
+  lastName?: string;
+  isActive?: boolean;
+  companyName?: string;
+  updatedAt?: string;
+  userCompanies?: ProfileCompany[];
+  isSubuser?: boolean;
+  parentUserId?: number | null;
+  allowedForms?: AllowedForm[];
+}
+
+export interface ProfileCompany {
+  id: string;
+  companyId: number;
+  name: string;
+  gstinNo?: string;
+  isCommon: boolean;
+}
+
+export interface AllowedForm {
+  id: number;
+  formName: string;
 }
 
 export interface Company {
   id: string;
+  recordId?: number;
   name: string;
   city: string;
+  gstinNo?: string;
   isActive: boolean;
-  // OG: CompanyInfo.Is_common — seeds the "Common Company" toggle default.
   isCommon?: boolean;
+  bankName?: string;
+  branchName?: string;
+  accountNo?: string;
+  ifscCode?: string;
+  banks?: { name: string; balance: number; dc: string }[];
+  os?: { totalPurchase: number; totalSales: number; totalGp: number };
 }
-
 // Sub Users (account-level user management)
 export interface SubUser {
   id: string;
@@ -29,6 +57,7 @@ export interface SubUser {
   companyName: string;
   isActive: boolean;
   allowedModules: string[]; // module keys from PERMISSION_MODULES
+  allowedFormIds?: number[]; // form IDs for API updates
 }
 
 // Dashboard — Bank & Cash balances
@@ -46,7 +75,71 @@ export interface SalesReportPoint {
   lastWeek: number;
 }
 
-// Sales Order
+// Item Master — from GET /api/v1/items/
+export interface Item {
+  id: number;         // vn_item_id
+  recordId: number;   // DB row id
+  code: string;       // vv_item_code
+  name: string;       // vv_item_name
+  uom: string;        // vv_uom
+  companyId: number;  // vn_company_id
+  salesRate: number;  // vn_sales_rate
+  hsnCode: string;    // vn_hsn_code
+  gst: number;        // vn_gst
+  productCode: string;// vv_product_code
+}
+
+// Account / Party — from GET /api/v1/accounts/
+export interface AccountParty {
+  id: number;   // account DB id
+  name: string; // party name
+}
+
+// Sales Order — from GET /api/v1/sales-orders/
+export interface SalesOrderApiItem {
+  id: string;
+  vn_item_id: number;
+  vv_item_name: string;
+  vv_color: string;
+  vn_nos: number;
+  vn_cut: number;
+  vn_qnty: number;
+  vn_rate: number;
+  vn_amount: number;
+  vn_line_no: number;
+}
+
+export interface SalesOrder {
+  id: number;
+  companyId: number;
+  orderNo: string;
+  date: string;
+  partyId: number;
+  partyName: string;
+  discount: number;
+  totalAmount: number;
+  remark: string;
+  items: SalesOrderApiItem[];
+}
+
+// POST body for creating a sales order
+export interface CreateSalesOrderPayload {
+  company_id: number;
+  order_no: string;
+  date: string;           // YYYY-MM-DD
+  party_id: number;
+  discount?: number;
+  remark?: string;
+  items: {
+    item_id: number;
+    color?: string;
+    nos: number;
+    cut: number;
+    rate: number;
+  }[];
+}
+
+// Sales Order (legacy local type — kept for compatibility)
 export interface SalesOrderItem {
   id: string;
   sort: string;
@@ -67,6 +160,7 @@ export interface SalesOsParty {
   lastPayment: string;
   creditLimit?: number;
   phone?: string;
+  bills?: SalesOsInvoice[];
 }
 
 export interface SalesOsInvoice {
@@ -334,25 +428,27 @@ export type CompanyTabParamList = {
 export type SalesOsStackParamList = {
   SalesOsFilter: undefined;
   SalesOsPartyList: { filter: ReportFilter };
-  SalesOsPartyDetail: { partyId: string; partyName: string; onlyDue?: boolean; commonCompany?: boolean };
+  SalesOsPartyDetail: { partyId: string; partyName: string; filter: ReportFilter };
   SalesOsBrokerList: { filter: ReportFilter };
-  SalesOsBrokerDetail: { brokerId: string; brokerName: string; onlyDue?: boolean; commonCompany?: boolean };
+  SalesOsBrokerDetail: { brokerId: string; brokerName: string; filter: ReportFilter };
   SalesOsAreaList: { filter: ReportFilter };
-  SalesOsAreaDetail: { areaId: string; areaName: string; onlyDue?: boolean; commonCompany?: boolean };
+  SalesOsAreaDetail: { areaId: string; areaName: string; filter: ReportFilter };
   SalesOsPartyGroupList: { filter: ReportFilter };
+  SalesOsPartyGroupDetail: { groupId: string; groupName: string; filter: ReportFilter };
   SalesOsSalesPersonList: { filter: ReportFilter };
+  SalesOsSalesPersonDetail: { salesPersonId: string; salesPersonName: string; filter: ReportFilter };
 };
 
 export type PurchaseOsStackParamList = {
   PurchaseOsFilter: undefined;
   PurchaseOsPartyList: { filter: ReportFilter };
-  PurchaseOsPartyDetail: { partyId: string; partyName: string; onlyDue?: boolean; commonCompany?: boolean };
+  PurchaseOsPartyDetail: { partyId: string; partyName: string; filter: ReportFilter };
 };
 
 export type GpOsStackParamList = {
   GpOsFilter: undefined;
   GpOsPartyList: { filter: ReportFilter };
-  GpOsPartyDetail: { partyId: string; partyName: string; onlyDue?: boolean; commonCompany?: boolean };
+  GpOsPartyDetail: { partyId: string; partyName: string; filter: ReportFilter };
 };
 
 export type SalesRegisterStackParamList = {

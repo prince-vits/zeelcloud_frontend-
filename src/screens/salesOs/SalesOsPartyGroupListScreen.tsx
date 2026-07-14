@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -39,14 +39,22 @@ export const SalesOsPartyGroupListScreen: React.FC<Props> = ({ navigation, route
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [onlyDue, commonCompany]);
+  }, [onlyDue, commonCompany, selectedCompany?.id]);
 
   const filtered = groups.filter((g) => g.name.toLowerCase().includes(search.toLowerCase()));
 
   const renderItem = ({ item, index }: { item: SalesOsPartyGroup; index: number }) => {
     const color = groupColors[index % groupColors.length];
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('SalesOsPartyGroupDetail', {
+          groupId: item.id,
+          groupName: item.name,
+          filter: { ...route.params.filter, onlyDue, commonCompany, companyId: selectedCompany?.id },
+        })}
+        activeOpacity={0.85}
+      >
         <View style={[styles.icon, { backgroundColor: color + '20' }]}>
           <Icon name="folder-open" size={22} color={color} />
         </View>
@@ -55,7 +63,7 @@ export const SalesOsPartyGroupListScreen: React.FC<Props> = ({ navigation, route
           <Text style={styles.meta}>{item.partyCount} parties</Text>
         </View>
         <Text style={[styles.amount, { color }]}>{formatCurrency(item.totalOs)}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 

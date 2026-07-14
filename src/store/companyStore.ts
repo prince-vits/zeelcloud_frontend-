@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { fetchMockCompanies } from '../data/mockData';
+import { companyApi } from '../services/api';
 import type { Company } from '../types';
 
 interface CompanyState {
@@ -11,7 +11,7 @@ interface CompanyState {
   fetchCompanies: () => Promise<void>;
 }
 
-export const useCompanyStore = create<CompanyState>((set) => ({
+export const useCompanyStore = create<CompanyState>((set, get) => ({
   companies: [],
   selectedCompany: null,
   lastSynced: '',
@@ -23,17 +23,27 @@ export const useCompanyStore = create<CompanyState>((set) => ({
 
   fetchCompanies: async () => {
     set({ isLoading: true });
-    const companies = await fetchMockCompanies();
-    set({
-      companies,
-      isLoading: false,
-      lastSynced: new Date().toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    });
+    try {
+      const companies = await companyApi.getAll();
+      const { selectedCompany } = get();
+      const nextSelected = selectedCompany
+        ? companies.find((company) => company.id === selectedCompany.id) ?? companies[0] ?? null
+        : selectedCompany;
+
+      set({
+        companies,
+        selectedCompany: nextSelected,
+        isLoading: false,
+        lastSynced: new Date().toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      });
+    } catch {
+      set({ isLoading: false });
+    }
   },
 }));

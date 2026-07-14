@@ -38,7 +38,7 @@ export const SalesOsAreaListScreen: React.FC<Props> = ({ navigation, route }) =>
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [onlyDue, commonCompany]);
+  }, [onlyDue, commonCompany, selectedCompany?.id]);
 
   const filtered = areas.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()));
   const totalOs = areas.reduce((sum, a) => sum + a.totalOs, 0);
@@ -49,7 +49,11 @@ export const SalesOsAreaListScreen: React.FC<Props> = ({ navigation, route }) =>
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate('SalesOsAreaDetail', { areaId: item.id, areaName: item.name, onlyDue, commonCompany })}
+        onPress={() => navigation.navigate('SalesOsAreaDetail', {
+          areaId: item.id,
+          areaName: item.name,
+          filter: { ...route.params.filter, onlyDue, commonCompany, companyId: selectedCompany?.id },
+        })}
         activeOpacity={0.85}
       >
         <View style={[styles.areaIcon, { backgroundColor: color + '20' }]}>

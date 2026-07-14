@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
@@ -25,14 +25,32 @@ const quickPresets: PeriodKey[] = ['This Week', 'This Month', 'This Quarter', 'T
 export const PurchaseOsFilterScreen: React.FC<Props> = ({ navigation }) => {
   const { selectedCompany } = useCompanyStore();
   const [reportType, setReportType] = useState('party');
-  const [activePreset, setActivePreset] = useState<PeriodKey>('This Month');
-  // Dates derived dynamically from the selected preset — no hard-coded values.
-  const range = rangeFor(activePreset);
-  const fromDate = range?.from ?? '';
-  const toDate = range?.to ?? '';
+  const [activePreset, setActivePreset] = useState<PeriodKey | 'Custom'>('This Month');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
+  React.useEffect(() => {
+    if (activePreset !== 'Custom') {
+      const range = rangeFor(activePreset);
+      setFromDate(range?.from ?? '');
+      setToDate(range?.to ?? '');
+    }
+  }, [activePreset]);
+
+  const handleCustomDateChange = (field: 'from' | 'to', value: string) => {
+    setActivePreset('Custom');
+    if (field === 'from') setFromDate(value);
+    else setToDate(value);
+  };
 
   const handleGenerate = () => {
-    const filter: ReportFilter = { reportType, fromDate, toDate, sortBy: 'Amount (High to Low)' };
+    const filter: ReportFilter = {
+      reportType,
+      fromDate,
+      toDate,
+      sortBy: 'Amount (High to Low)',
+      companyId: selectedCompany?.id,
+    };
     navigation.navigate('PurchaseOsPartyList', { filter });
   };
 
@@ -70,7 +88,13 @@ export const PurchaseOsFilterScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.dateLabel}>From</Text>
               <View style={styles.dateInput}>
                 <Icon name="calendar-outline" size={16} color={Colors.gradientEnd} />
-                <Text style={styles.dateValue}>{fromDate}</Text>
+                <TextInput
+                  style={styles.dateValue}
+                  value={fromDate}
+                  onChangeText={(val) => handleCustomDateChange('from', val)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={Colors.gray400}
+                />
               </View>
             </View>
             <Icon name="arrow-right" size={18} color={Colors.gray400} style={styles.arrow} />
@@ -78,7 +102,13 @@ export const PurchaseOsFilterScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.dateLabel}>To</Text>
               <View style={styles.dateInput}>
                 <Icon name="calendar-outline" size={16} color={Colors.gradientEnd} />
-                <Text style={styles.dateValue}>{toDate}</Text>
+                <TextInput
+                  style={styles.dateValue}
+                  value={toDate}
+                  onChangeText={(val) => handleCustomDateChange('to', val)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={Colors.gray400}
+                />
               </View>
             </View>
           </View>
@@ -126,7 +156,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray100, borderRadius: BorderRadius.md,
     padding: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
   },
-  dateValue: { fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium },
+  dateValue: { flex: 1, fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium, padding: 0, margin: 0 },
   arrow: { marginHorizontal: Spacing.sm, marginTop: 14 },
   presetLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginBottom: Spacing.sm, fontWeight: Typography.fontWeights.medium },
   presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },

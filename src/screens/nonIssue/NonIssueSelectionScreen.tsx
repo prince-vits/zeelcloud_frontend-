@@ -5,6 +5,7 @@ import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { stockApi } from '../../services/api';
+import { useCompanyStore } from '../../store/companyStore';
 import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { NonIssueStackParamList, StockItem } from '../../types';
@@ -29,18 +30,19 @@ const reports: NonIssueReport[] = [
 ];
 
 export const NonIssueSelectionScreen: React.FC<Props> = ({ navigation }) => {
+  const { selectedCompany } = useCompanyStore();
   const [stock, setStock] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     stockApi
-      .getAll()
+      .getAll(selectedCompany?.id)
       .then((data) => {
         setStock(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [selectedCompany?.id]);
 
   const statsFor = (r: NonIssueReport) => {
     const items = stock.filter((s) => s.category === r.category);

@@ -25,12 +25,14 @@ export const CompaniesScreen: React.FC = () => {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchCompanies();
-  }, []);
+    if (companies.length === 0) {
+      fetchCompanies();
+    }
+  }, [companies.length, fetchCompanies]);
 
   const lower = search.toLowerCase();
   const filtered = companies.filter(
-    (c) => c.name.toLowerCase().includes(lower) || c.city.toLowerCase().includes(lower),
+    (c) => c.name.toLowerCase().includes(lower) || c.gstinNo?.toLowerCase().includes(lower)
   );
 
   const handleSelect = (company: Company) => {
@@ -47,9 +49,9 @@ export const CompaniesScreen: React.FC = () => {
         </View>
         <View style={styles.cardInfo}>
           <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-          <View style={styles.cityRow}>
-            <Icon name="map-marker-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.cardCity}>{item.city}</Text>
+          <View style={styles.gstinRow}>
+            <Icon name="card-account-details-outline" size={12} color={Colors.textSecondary} />
+            <Text style={styles.cardGstin}>{item.gstinNo || 'GSTIN not available'}</Text>
           </View>
         </View>
         <Icon name="chevron-right" size={22} color={Colors.gray400} />
@@ -164,8 +166,8 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.bold,
     color: Colors.textPrimary,
   },
-  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  cardCity: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary },
+  gstinRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  cardGstin: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: Typography.fontSizes.base, color: Colors.textSecondary },
 });

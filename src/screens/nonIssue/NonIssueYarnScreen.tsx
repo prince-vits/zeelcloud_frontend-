@@ -15,6 +15,7 @@ export const NonIssueYarnScreen: React.FC<Props> = ({ navigation, route }) => (
   <StockReportView
     title="Yarn"
     category="yarn"
+    stockSource="sequance"
     columns={route.params.reportType === 'qualityLotGrade' ? yarnLotGradeColumns : yarnColumns}
     reportType={route.params.reportType}
     rowEmoji={yarnEmoji}

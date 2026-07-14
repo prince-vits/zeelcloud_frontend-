@@ -10,6 +10,7 @@ import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { salesRegisterApi } from '../../services/api';
+import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { SalesRegisterStackParamList, RegisterEntry } from '../../types';
 import { formatCurrency } from '../../utils/currency';
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export const SalesRegisterScreen: React.FC<Props> = ({ navigation }) => {
+  const { selectedCompany } = useCompanyStore();
   const [entries, setEntries] = useState<RegisterEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -29,12 +31,17 @@ export const SalesRegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [toDate, setToDate] = useState('');
 
   useEffect(() => {
-    salesRegisterApi.getEntries().then((data) => {
+    salesRegisterApi.getEntries({
+      reportType: 'sales',
+      fromDate,
+      toDate,
+      companyId: selectedCompany?.id,
+    }).then((data) => {
       setEntries(data);
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, []);
+  }, [selectedCompany?.id, fromDate, toDate]);
 
   const handlePeriod = (p: string) => {
     const key = p as PeriodKey;

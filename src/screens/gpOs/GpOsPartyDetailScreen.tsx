@@ -30,23 +30,33 @@ const gpInvoiceToInterestInput = (inv: GpOsInvoice) => ({
 });
 
 export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { partyId, partyName } = route.params;
+  const { partyId, partyName, filter } = route.params;
   const [party, setParty] = useState<GpOsParty | undefined>(undefined);
   const [invoices, setInvoices] = useState<GpOsInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [calcVisible, setCalcVisible] = useState(false);
-  // "Only Due" is passed from the list screen and can also be toggled here.
-  const [onlyDue, setOnlyDue] = useState(route.params.onlyDue ?? false);
+  const [onlyDue, setOnlyDue] = useState(filter.onlyDue ?? false);
 
   useEffect(() => {
-    gpOsApi.getPartyById(partyId).then(setParty);
-    gpOsApi.getPartyInvoices(partyId).then((data) => {
-      setInvoices(data);
-      setLoading(false);
-    })
-      .catch(() => setLoading(false));
-  }, [partyId]);
+    setLoading(true);
+    Promise.all([
+      gpOsApi.getPartyById(partyId, filter),
+      gpOsApi.getPartyInvoices(partyId, filter),
+    ])
+      .then(([partyData, invoiceData]) => {
+        setParty(partyData ?? {
+          id: partyId,
+          name: partyName,
+          address: '',
+          totalOs: invoiceData.reduce((sum, inv) => sum + inv.balance, 0),
+          invoiceCount: invoiceData.length,
+          daysOverdue: 0,
+        });
+        setInvoices(invoiceData);
+      })
+      .finally(() => setLoading(false));
+  }, [partyId, partyName, filter]);
 
   // "Only Due" → show only overdue bills (due_days > 0).
   const visibleInvoices = onlyDue ? invoices.filter((i) => i.dueDays > 0) : invoices;

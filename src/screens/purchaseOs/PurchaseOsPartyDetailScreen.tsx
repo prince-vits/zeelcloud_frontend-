@@ -20,7 +20,7 @@ type Props = {
 
 
 export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { partyId, partyName, onlyDue } = route.params;
+  const { partyId, partyName, filter } = route.params;
   const [party, setParty] = useState<PurchaseOsParty | undefined>(undefined);
   const [invoices, setInvoices] = useState<PurchaseOsInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,16 +28,26 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
   const [calcVisible, setCalcVisible] = useState(false);
 
   useEffect(() => {
-    purchaseOsApi.getPartyById(partyId).then(setParty);
-    purchaseOsApi.getPartyInvoices(partyId).then((data) => {
-      setInvoices(data);
-      setLoading(false);
-    })
-      .catch(() => setLoading(false));
-  }, [partyId]);
+    setLoading(true);
+    Promise.all([
+      purchaseOsApi.getPartyById(partyId, filter),
+      purchaseOsApi.getPartyInvoices(partyId, filter),
+    ])
+      .then(([partyData, invoiceData]) => {
+        setParty(partyData ?? {
+          id: partyId,
+          name: partyName,
+          city: '',
+          totalOs: invoiceData.reduce((sum, inv) => sum + inv.outstanding, 0),
+          invoiceCount: invoiceData.length,
+          daysOverdue: 0,
+        });
+        setInvoices(invoiceData);
+      })
+      .finally(() => setLoading(false));
+  }, [partyId, partyName, filter]);
 
-  // "Only Due" (passed from the summary list) → show only overdue invoices.
-  const visibleInvoices = onlyDue ? invoices.filter((i) => i.daysLeft < 0) : invoices;
+  const visibleInvoices = filter.onlyDue ? invoices.filter((i) => i.daysLeft < 0) : invoices;
 
   const toggleBill = (id: string) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -63,7 +73,7 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
     await Share.share({ message: `Purchase OS\nParty: ${party.name}\nTotal: ${formatCurrency(party.totalOs)}` });
   };
 
-  if (!party) return <LoadingOverlay visible message="Loading..." />;
+  if (loading || !party) return <LoadingOverlay visible message="Loading..." />;
 
   return (
     <View style={styles.container}>
@@ -118,7 +128,7 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
         <Card style={styles.card}>
           <View style={styles.invoicesHeader}>
             <Text style={styles.cardTitle}>
-              {onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
+              {filter?.onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
             </Text>
             {visibleInvoices.length > 0 ? (
               <TouchableOpacity style={styles.selectAll} onPress={toggleSelectAll} activeOpacity={0.7}>

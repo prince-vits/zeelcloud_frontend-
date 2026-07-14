@@ -67,14 +67,30 @@ export const SubUserForm: React.FC<SubUserFormProps> = ({
 
   const handleSubmit = () => {
     const next: Record<string, string> = {};
-    if (!firstName.trim()) next.firstName = 'First name is required';
-    if (!username.trim()) next.username = 'Username is required';
-    if (!password.trim()) {
-      next.password = 'Password is required';
-    } else if (password.length < 6) {
-      next.password = 'At least 6 characters';
+    const isEditMode = !!initial;
+
+    // In create mode, require firstName, username, and password
+    // In edit mode, all fields are optional
+    if (!isEditMode) {
+      if (!firstName.trim()) next.firstName = 'First name is required';
+      if (!username.trim()) next.username = 'Username is required';
+      if (!phone.trim()) next.phone = 'Contact number is required';
+      if (!password.trim()) {
+        next.password = 'Password is required';
+      } else if (password.length < 4) {
+        next.password = 'At least 4 characters';
+      }
+      if (allowed.length === 0) next.allowedModules = 'Select at least one module';
+    } else {
+      // Edit mode: only validate password if provided
+      if (password && password.length > 0 && password.length < 6) {
+        next.password = 'At least 6 characters';
+      }
     }
+    
+    // Email validation applies to both modes: only validate if provided
     if (email.trim() && !isValidEmail(email.trim())) next.email = 'Enter a valid email';
+    
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -113,7 +129,7 @@ export const SubUserForm: React.FC<SubUserFormProps> = ({
 
         <InputField label="Username" value={username} onChangeText={setUsername} placeholder="Enter username" leftIcon="account-outline" error={errors.username} />
         <InputField label="Password" value={password} onChangeText={setPassword} placeholder="Enter password" leftIcon="lock-outline" error={errors.password} />
-        <InputField label="Contact Number" value={phone} onChangeText={setPhone} placeholder="Enter contact number" leftIcon="phone-outline" keyboardType="phone-pad" />
+        <InputField label="Contact Number" value={phone} onChangeText={setPhone} placeholder="Enter contact number" leftIcon="phone-outline" keyboardType="phone-pad" error={errors.phone} />
         <InputField label="First Name" value={firstName} onChangeText={setFirstName} placeholder="Enter first name" leftIcon="card-account-details-outline" error={errors.firstName} autoCapitalize="words" />
         <InputField label="Last Name" value={lastName} onChangeText={setLastName} placeholder="Enter last name" leftIcon="card-account-details-outline" autoCapitalize="words" />
         <InputField label="Email" value={email} onChangeText={setEmail} placeholder="Enter email address" leftIcon="email-outline" keyboardType="email-address" error={errors.email} />
@@ -130,6 +146,9 @@ export const SubUserForm: React.FC<SubUserFormProps> = ({
           </TouchableOpacity>
         </View>
         <Text style={styles.sectionSub}>Select the modules this sub user can access</Text>
+        {errors.allowedModules ? (
+          <Text style={styles.moduleError}>{errors.allowedModules}</Text>
+        ) : null}
         <View style={styles.moduleGrid}>
           {PERMISSION_MODULES.map((m) => (
             <View key={m} style={styles.moduleCell}>
@@ -157,6 +176,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.xs,
     color: Colors.textSecondary,
     marginTop: 2,
+    marginBottom: Spacing.sm,
+  },
+  moduleError: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.danger,
     marginBottom: Spacing.sm,
   },
   selectAllBtn: {

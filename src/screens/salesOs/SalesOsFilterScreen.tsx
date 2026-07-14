@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  TextInput,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -34,17 +35,31 @@ export const SalesOsFilterScreen: React.FC<Props> = ({ navigation }) => {
   const { selectedCompany } = useCompanyStore();
 
   const [reportType, setReportType] = useState('party');
-  const [activePreset, setActivePreset] = useState<PeriodKey>('This Month');
-  // Dates derived dynamically from the selected preset — no hard-coded values.
-  const range = rangeFor(activePreset);
-  const fromDate = range?.from ?? '';
-  const toDate = range?.to ?? '';
+  const [activePreset, setActivePreset] = useState<PeriodKey | 'Custom'>('This Month');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
+  // Initialize dates from default preset
+  React.useEffect(() => {
+    if (activePreset !== 'Custom') {
+      const range = rangeFor(activePreset);
+      setFromDate(range?.from ?? '');
+      setToDate(range?.to ?? '');
+    }
+  }, [activePreset]);
+
+  const handleCustomDateChange = (field: 'from' | 'to', value: string) => {
+    setActivePreset('Custom');
+    if (field === 'from') setFromDate(value);
+    else setToDate(value);
+  };
 
   const handleGenerate = () => {
     const filter: ReportFilter = {
       reportType,
       fromDate,
       toDate,
+      companyId: selectedCompany?.id,
     };
     switch (reportType) {
       case 'party':
@@ -108,7 +123,13 @@ export const SalesOsFilterScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.dateLabel}>From</Text>
               <View style={styles.dateInput}>
                 <Icon name="calendar-outline" size={16} color={Colors.gradientStart} />
-                <Text style={styles.dateValue}>{fromDate}</Text>
+                <TextInput
+                  style={styles.dateValue}
+                  value={fromDate}
+                  onChangeText={(val) => handleCustomDateChange('from', val)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={Colors.gray400}
+                />
               </View>
             </View>
             <Icon name="arrow-right" size={18} color={Colors.gray400} style={styles.dateArrow} />
@@ -116,7 +137,13 @@ export const SalesOsFilterScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.dateLabel}>To</Text>
               <View style={styles.dateInput}>
                 <Icon name="calendar-outline" size={16} color={Colors.gradientStart} />
-                <Text style={styles.dateValue}>{toDate}</Text>
+                <TextInput
+                  style={styles.dateValue}
+                  value={toDate}
+                  onChangeText={(val) => handleCustomDateChange('to', val)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={Colors.gray400}
+                />
               </View>
             </View>
           </View>
@@ -210,13 +237,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   dateValue: {
+    flex: 1,
     fontSize: Typography.fontSizes.base,
     color: Colors.textPrimary,
     fontWeight: Typography.fontWeights.medium,
+    padding: 0,
+    margin: 0,
   },
   dateArrow: {
     marginHorizontal: Spacing.sm,
-    marginTop: 14,
+    marginTop: 24,
   },
   presetLabel: {
     fontSize: Typography.fontSizes.xs,
