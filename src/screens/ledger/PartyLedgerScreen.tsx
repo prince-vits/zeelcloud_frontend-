@@ -8,6 +8,7 @@ import { SearchBar } from '../../components/SearchBar';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { ledgerApi } from '../../services/api';
+import { useCompanyStore } from '../../store/companyStore';
 import { getInitials } from '../../utils/strings';
 import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
@@ -15,19 +16,25 @@ import type { AppStackParamList, PartyLedgerAccount } from '../../types';
 
 export const PartyLedgerScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { selectedCompany } = useCompanyStore();
   const [parties, setParties] = useState<PartyLedgerAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [skipZero, setSkipZero] = useState(false);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    ledgerApi.getPartyLedger()
+    ledgerApi.getPartyLedger({
+      reportType: 'party',
+      fromDate: '',
+      toDate: '',
+      companyId: selectedCompany?.id,
+    })
       .then((data) => {
         setParties(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [selectedCompany?.id]);
 
   const lowerSearch = search.toLowerCase();
   const visible = parties

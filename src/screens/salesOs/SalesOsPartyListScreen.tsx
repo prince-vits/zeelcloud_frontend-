@@ -34,13 +34,13 @@ export const SalesOsPartyListScreen: React.FC<Props> = ({ navigation, route }) =
   // Re-fetch whenever a toggle changes (mirrors the OG getSummary() re-fetch).
   useEffect(() => {
     setLoading(true);
-    const filter = { ...route.params.filter, onlyDue, commonCompany, companyId: selectedCompany?.id };
+    const filter = { ...route.params.filter, onlyDue, commonCompany, companyId: String(selectedCompany?.recordId || selectedCompany?.id) };
     salesOsApi.getParties(filter).then((data) => {
       setParties(data);
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [onlyDue, commonCompany]);
+  }, [onlyDue, commonCompany, selectedCompany?.recordId, selectedCompany?.id]);
 
   const lowerSearch = search.toLowerCase();
   // Sort By UI removed — data is forced latest-first (reverse chronological by last payment).
@@ -60,7 +60,11 @@ export const SalesOsPartyListScreen: React.FC<Props> = ({ navigation, route }) =
     return (
       <TouchableOpacity
         style={styles.partyCard}
-        onPress={() => navigation.navigate('SalesOsPartyDetail', { partyId: item.id, partyName: item.name, onlyDue, commonCompany })}
+        onPress={() => navigation.navigate('SalesOsPartyDetail', {
+          partyId: item.id,
+          partyName: item.name,
+          filter: { ...route.params.filter, onlyDue, commonCompany, companyId: String(selectedCompany?.recordId || selectedCompany?.id) },
+        })}
         activeOpacity={0.85}
       >
         <View style={[styles.avatar, { backgroundColor: color }]}>

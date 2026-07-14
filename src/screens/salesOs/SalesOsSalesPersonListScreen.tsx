@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -37,14 +37,22 @@ export const SalesOsSalesPersonListScreen: React.FC<Props> = ({ navigation, rout
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [onlyDue, commonCompany]);
+  }, [onlyDue, commonCompany, selectedCompany?.id]);
 
   const filtered = persons.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   const renderItem = ({ item }: { item: SalesOsSalesPerson }) => {
     const achievePct = item.target ? Math.min(100, (item.totalOs / item.target) * 100) : 0;
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('SalesOsSalesPersonDetail', {
+          salesPersonId: item.id,
+          salesPersonName: item.name,
+          filter: { ...route.params.filter, onlyDue, commonCompany, companyId: selectedCompany?.id },
+        })}
+        activeOpacity={0.85}
+      >
         <View style={styles.avatar}>
           <Icon name="account-tie" size={22} color={Colors.textWhite} />
         </View>
@@ -65,7 +73,7 @@ export const SalesOsSalesPersonListScreen: React.FC<Props> = ({ navigation, rout
             </>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

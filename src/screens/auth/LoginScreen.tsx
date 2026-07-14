@@ -22,7 +22,7 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
-export const LoginScreen: React.FC<Props> = ({ navigation }) => {
+export const LoginScreen: React.FC<Props> = () => {
   const insets = useSafeAreaInsets();
   const { login, isLoading } = useAuthStore();
   const [username, setUsername] = useState('');
@@ -46,9 +46,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }
     if (!valid) return;
     const success = await login(username, password);
-    if (success) {
-      navigation.replace('App');
-    } else {
+    if (!success) {
       Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
     }
   };

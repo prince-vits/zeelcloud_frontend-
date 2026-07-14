@@ -14,6 +14,7 @@ export const NonIssueBeamScreen: React.FC<Props> = ({ navigation, route }) => (
   <StockReportView
     title="Beam"
     category="beam"
+    stockSource="sequance"
     columns={beamColumns}
     reportType={route.params.reportType}
     searchPlaceholder="Search beams..."

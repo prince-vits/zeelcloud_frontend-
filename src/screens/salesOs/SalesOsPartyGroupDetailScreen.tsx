@@ -9,18 +9,18 @@ import { Badge } from '../../components/Badge';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
 import { salesOsApi } from '../../services/api';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
-import type { SalesOsStackParamList, SalesOsBroker, SalesOsParty, SalesOsInvoice } from '../../types';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
+import type { SalesOsStackParamList, SalesOsPartyGroup, SalesOsParty } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 
 type Props = {
-  navigation: NativeStackNavigationProp<SalesOsStackParamList, 'SalesOsBrokerDetail'>;
-  route: RouteProp<SalesOsStackParamList, 'SalesOsBrokerDetail'>;
+  navigation: NativeStackNavigationProp<SalesOsStackParamList, 'SalesOsPartyGroupDetail'>;
+  route: RouteProp<SalesOsStackParamList, 'SalesOsPartyGroupDetail'>;
 };
 
-export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { brokerId, brokerName, filter } = route.params;
-  const [broker, setBroker] = useState<SalesOsBroker | undefined>(undefined);
+export const SalesOsPartyGroupDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+  const { groupId, groupName, filter } = route.params;
+  const [group, setGroup] = useState<SalesOsPartyGroup | undefined>(undefined);
   const [parties, setParties] = useState<SalesOsParty[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -28,15 +28,15 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
 
   useEffect(() => {
     Promise.all([
-      salesOsApi.getBrokerById(brokerId, filter),
-      salesOsApi.getPartiesForBroker(brokerId, filter),
+      salesOsApi.getPartyGroupById(groupId, filter),
+      salesOsApi.getPartiesForPartyGroup(groupName, filter),
     ])
-      .then(([brokerData, partyData]) => {
-        setBroker(brokerData);
+      .then(([groupData, partyData]) => {
+        setGroup(groupData);
         setParties(partyData);
       })
       .finally(() => setLoading(false));
-  }, [brokerId, filter]);
+  }, [groupId, groupName, filter]);
 
   const toggleBill = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -61,28 +61,19 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
   const firstTermDays = selectedInvoices.length ? toInterestBill(selectedInvoices[0]).termDays : 30;
 
   if (loading) return <LoadingOverlay visible message="Loading..." />;
-  if (!broker) return null;
+  if (!group) return null;
 
   return (
     <View style={styles.container}>
-      <GradientHeader title="Sales O/s Broker Detail" subtitle={brokerName} onBack={() => navigation.goBack()} />
+      <GradientHeader title="Sales O/s Party Group Detail" subtitle={groupName || 'Unknown Group'} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Broker Summary */}
+        {/* Group Summary */}
         <Card style={styles.summaryCard}>
           <View style={styles.brokerHeader}>
             <View>
-              <Text style={styles.brokerName}>{broker.name}</Text>
-              {broker.phone && <Text style={styles.brokerPhone}>{broker.phone}</Text>}
+              <Text style={styles.brokerName}>{groupName || 'Unknown Group'}</Text>
             </View>
-            {broker.phone && (
-              <TouchableOpacity
-                style={styles.callBtn}
-                onPress={() => Alert.alert('Call', `Calling ${broker.phone}`)}
-              >
-                <Icon name="whatsapp" size={24} color={Colors.success} />
-              </TouchableOpacity>
-            )}
           </View>
           {filter?.fromDate && filter?.toDate && (
             <Text style={styles.dateRange}>
@@ -90,7 +81,7 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
             </Text>
           )}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total O/s : <Text style={styles.totalAmount}>{formatCurrency(broker.totalOs)}</Text></Text>
+            <Text style={styles.totalLabel}>Total O/s : <Text style={styles.totalAmount}>{formatCurrency(group.totalOs)}</Text></Text>
           </View>
         </Card>
 
@@ -150,6 +141,15 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
           );
         })}
 
+        {parties.length === 0 && (
+          <View style={{ alignItems: 'center', padding: Spacing.xl }}>
+            <Icon name="folder-off" size={36} color={Colors.gray300} />
+            <Text style={{ fontSize: Typography.fontSizes.sm, color: Colors.textSecondary, marginTop: Spacing.sm }}>
+              No parties listed for this group.
+            </Text>
+          </View>
+        )}
+
         {/* Selected total + Interest Calculation */}
         {selectedInvoices.length > 0 && (
           <Card style={styles.actionCard}>
@@ -181,8 +181,6 @@ const styles = StyleSheet.create({
   summaryCard: { marginBottom: Spacing.md, padding: Spacing.md },
   brokerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   brokerName: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  brokerPhone: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary, marginTop: 2 },
-  callBtn: { backgroundColor: '#E8F5E9', padding: Spacing.sm, borderRadius: BorderRadius.md },
   dateRange: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: Spacing.sm },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.md },
   totalLabel: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },

@@ -37,7 +37,7 @@ export const SalesOsBrokerListScreen: React.FC<Props> = ({ navigation, route }) 
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [onlyDue, commonCompany]);
+  }, [onlyDue, commonCompany, selectedCompany?.id]);
 
   const lowerSearch = search.toLowerCase();
   const filtered = brokers.filter(
@@ -49,7 +49,11 @@ export const SalesOsBrokerListScreen: React.FC<Props> = ({ navigation, route }) 
   const renderItem = ({ item }: { item: SalesOsBroker }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => navigation.navigate('SalesOsBrokerDetail', { brokerId: item.id, brokerName: item.name, onlyDue, commonCompany })}
+      onPress={() => navigation.navigate('SalesOsBrokerDetail', {
+        brokerId: item.id,
+        brokerName: item.name,
+        filter: { ...route.params.filter, onlyDue, commonCompany, companyId: selectedCompany?.id },
+      })}
       activeOpacity={0.85}
     >
       <View style={styles.avatar}>

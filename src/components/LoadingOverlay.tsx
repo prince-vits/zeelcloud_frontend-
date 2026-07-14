@@ -3,11 +3,11 @@ import { View, Text, ActivityIndicator, StyleSheet, Modal } from 'react-native';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 
 interface LoadingOverlayProps {
-  visible: boolean;
+  visible?: boolean;
   message?: string;
 }
 
-export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ visible, message }) => {
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ visible = true, message }) => {
   return (
     <Modal transparent animationType="fade" visible={visible} statusBarTranslucent>
       <View style={styles.overlay}>

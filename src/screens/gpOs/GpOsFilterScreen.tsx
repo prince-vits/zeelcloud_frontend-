@@ -26,7 +26,12 @@ export const GpOsFilterScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleGenerate = () => {
     // GP OS is party-wise only.
-    const filter: ReportFilter = { reportType: 'party', fromDate, toDate };
+    const filter: ReportFilter = {
+      reportType: 'party',
+      fromDate,
+      toDate,
+      companyId: selectedCompany?.id,
+    };
     navigation.navigate('GpOsPartyList', { filter });
   };
 

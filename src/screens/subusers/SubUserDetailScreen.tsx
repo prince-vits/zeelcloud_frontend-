@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
 import { Card } from '../../components/Card';
 import { PrimaryButton } from '../../components/PrimaryButton';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { useSubUserStore } from '../../store/subUserStore';
+import { confirmAction, showAlert } from '../../utils/alert';
 import { getInitials } from '../../utils/strings';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { SubUserStackParamList } from '../../types';
@@ -19,9 +21,27 @@ const splitName = (name: string) => {
 export const SubUserDetailScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<SubUserStackParamList>>();
   const route = useRoute<RouteProp<SubUserStackParamList, 'SubUserDetail'>>();
-  const { getById, deleteSubUser } = useSubUserStore();
-  const user = getById(route.params.userId);
-  const [showPass, setShowPass] = useState(false);
+  const { getById, fetchSubUserById, deactivateSubUserViaAPI } = useSubUserStore();
+  const [user, setUser] = useState(() => getById(route.params.userId));
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
+  useEffect(() => {
+    fetchSubUserById(route.params.userId)
+      .then((subUser) => setUser(subUser))
+      .finally(() => setIsLoading(false));
+  }, [fetchSubUserById, route.params.userId]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <GradientHeader title="Sub User Details" onBack={() => navigation.goBack()} />
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!user) {
     return (
@@ -37,35 +57,40 @@ export const SubUserDetailScreen: React.FC = () => {
 
   const { first, last } = splitName(user.name);
 
-  const handleDelete = () => {
-    Alert.alert('Delete Sub User', `Remove ${user.name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteSubUser(user.id);
-          navigation.goBack();
-        },
+  const handleDeactivate = () => {
+    confirmAction(
+      'Deactivate Sub User',
+      `Deactivate ${user.name}? They will no longer be able to sign in.`,
+      async () => {
+        setIsDeactivating(true);
+        try {
+          await deactivateSubUserViaAPI(user.id);
+          navigation.popToTop();
+          showAlert('Sub User Deactivated', `${user.name} has been deactivated.`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to deactivate sub user';
+          showAlert('Deactivate Failed', errorMessage);
+        } finally {
+          setIsDeactivating(false);
+        }
       },
-    ]);
+      { confirmText: 'Deactivate', destructive: true },
+    );
   };
 
-  const infoRows: { icon: string; label: string; value: string; secure?: boolean }[] = [
+  const infoRows: { icon: string; label: string; value: string }[] = [
     { icon: 'account-outline', label: 'Username', value: user.username },
-    { icon: 'lock-outline', label: 'Password', value: user.password, secure: true },
-    { icon: 'phone-outline', label: 'Contact Number', value: user.phone },
     { icon: 'card-account-details-outline', label: 'First Name', value: first },
-    { icon: 'card-account-details-outline', label: 'Last Name', value: last || '-' },
-    { icon: 'email-outline', label: 'Email', value: user.email },
-    { icon: 'office-building-outline', label: 'Company Name', value: user.companyName },
+    { icon: 'card-account-details-outline', label: 'Last Name', value: last || '—' },
+    { icon: 'phone-outline', label: 'Contact', value: user.phone || '—' },
+    { icon: 'email-outline', label: 'Email', value: user.email || '—' },
+    { icon: 'office-building-outline', label: 'Company', value: user.companyName || '—' },
   ];
 
   return (
     <View style={styles.container}>
       <GradientHeader title="Sub User Details" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile header */}
         <Card style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{getInitials(user.name)}</Text>
@@ -73,7 +98,7 @@ export const SubUserDetailScreen: React.FC = () => {
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user.name}</Text>
             <Text style={styles.profileHandle}>@{user.username}</Text>
-            <Text style={styles.profileCompany}>{user.companyName}</Text>
+            <Text style={styles.profileCompany}>{user.companyName || '—'}</Text>
           </View>
           <View style={[styles.statusBadge, user.isActive ? styles.activeBadge : styles.inactiveBadge]}>
             <View style={[styles.statusDot, { backgroundColor: user.isActive ? Colors.success : Colors.gray400 }]} />
@@ -83,7 +108,6 @@ export const SubUserDetailScreen: React.FC = () => {
           </View>
         </Card>
 
-        {/* User information */}
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>User Information</Text>
           {infoRows.map((row, idx) => (
@@ -92,23 +116,11 @@ export const SubUserDetailScreen: React.FC = () => {
                 <Icon name={row.icon} size={16} color={Colors.primary} />
               </View>
               <Text style={styles.infoLabel}>{row.label}</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {row.secure && !showPass ? '••••••••' : row.value}
-              </Text>
-              {row.secure ? (
-                <Icon
-                  name={showPass ? 'eye-off-outline' : 'eye-outline'}
-                  size={16}
-                  color={Colors.textMuted}
-                  style={styles.eye}
-                  onPress={() => setShowPass((s) => !s)}
-                />
-              ) : null}
+              <Text style={styles.infoValue} numberOfLines={1}>{row.value}</Text>
             </View>
           ))}
         </Card>
 
-        {/* Allowed modules */}
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>Allowed Modules ({user.allowedModules.length})</Text>
           {user.allowedModules.length === 0 ? (
@@ -125,19 +137,32 @@ export const SubUserDetailScreen: React.FC = () => {
           )}
         </Card>
 
-        <PrimaryButton
-          title="Edit Sub User"
-          icon="pencil-outline"
-          onPress={() => navigation.navigate('EditSubUser', { userId: user.id })}
-          style={styles.actionBtn}
-        />
-        <PrimaryButton
-          title="Delete Sub User"
-          icon="trash-can-outline"
-          variant="danger"
-          onPress={handleDelete}
-        />
+        {user.isActive ? (
+          <>
+            <PrimaryButton
+              title="Edit Sub User"
+              icon="pencil-outline"
+              onPress={() => navigation.navigate('EditSubUser', { userId: user.id })}
+              style={styles.actionBtn}
+            />
+            <PrimaryButton
+              title="Deactivate Sub User"
+              icon="account-off-outline"
+              variant="danger"
+              onPress={handleDeactivate}
+              loading={isDeactivating}
+              disabled={isDeactivating}
+            />
+          </>
+        ) : (
+          <PrimaryButton
+            title="Edit Sub User"
+            icon="pencil-outline"
+            onPress={() => navigation.navigate('EditSubUser', { userId: user.id })}
+          />
+        )}
       </ScrollView>
+      {isDeactivating ? <LoadingOverlay message="Deactivating sub user..." /> : null}
     </View>
   );
 };
@@ -145,6 +170,7 @@ export const SubUserDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.md, paddingBottom: Spacing.xl },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   missing: { alignItems: 'center', paddingTop: 80, gap: Spacing.sm },
   missingText: { fontSize: Typography.fontSizes.base, color: Colors.textSecondary },
 
@@ -220,7 +246,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.medium,
     textAlign: 'right',
   },
-  eye: { marginLeft: Spacing.sm },
   noModules: { fontSize: Typography.fontSizes.sm, color: Colors.textMuted },
   moduleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   moduleChip: {
@@ -236,5 +261,4 @@ const styles = StyleSheet.create({
   },
   moduleText: { fontSize: Typography.fontSizes.xs, color: Colors.textPrimary },
   actionBtn: { marginBottom: Spacing.sm },
-  deleteOutline: { borderColor: Colors.danger },
 });

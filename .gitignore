@@ -37,6 +37,8 @@ yarn-error.*
 *.tsbuildinfo
 
 # Native build outputs and caches (regenerated locally)
+/android
+/ios
 /android/.gradle/
 /android/build/
 /android/app/build/

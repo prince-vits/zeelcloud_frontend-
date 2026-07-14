@@ -8,21 +8,27 @@ import { SalesOsBrokerDetailScreen } from '../../screens/salesOs/SalesOsBrokerDe
 import { SalesOsAreaListScreen } from '../../screens/salesOs/SalesOsAreaListScreen';
 import { SalesOsAreaDetailScreen } from '../../screens/salesOs/SalesOsAreaDetailScreen';
 import { SalesOsPartyGroupListScreen } from '../../screens/salesOs/SalesOsPartyGroupListScreen';
+import { SalesOsPartyGroupDetailScreen } from '../../screens/salesOs/SalesOsPartyGroupDetailScreen';
 import { SalesOsSalesPersonListScreen } from '../../screens/salesOs/SalesOsSalesPersonListScreen';
+import { SalesOsSalesPersonDetailScreen } from '../../screens/salesOs/SalesOsSalesPersonDetailScreen';
 import type { SalesOsStackParamList } from '../../types';
 
 const Stack = createNativeStackNavigator<SalesOsStackParamList>();
 
-export const SalesOsStack: React.FC = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="SalesOsFilter" component={SalesOsFilterScreen} />
-    <Stack.Screen name="SalesOsPartyList" component={SalesOsPartyListScreen} />
-    <Stack.Screen name="SalesOsPartyDetail" component={SalesOsPartyDetailScreen} />
-    <Stack.Screen name="SalesOsBrokerList" component={SalesOsBrokerListScreen} />
-    <Stack.Screen name="SalesOsBrokerDetail" component={SalesOsBrokerDetailScreen} />
-    <Stack.Screen name="SalesOsAreaList" component={SalesOsAreaListScreen} />
-    <Stack.Screen name="SalesOsAreaDetail" component={SalesOsAreaDetailScreen} />
-    <Stack.Screen name="SalesOsPartyGroupList" component={SalesOsPartyGroupListScreen} />
-    <Stack.Screen name="SalesOsSalesPersonList" component={SalesOsSalesPersonListScreen} />
-  </Stack.Navigator>
-);
+export const SalesOsStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="SalesOsFilter" component={SalesOsFilterScreen} />
+      <Stack.Screen name="SalesOsPartyList" component={SalesOsPartyListScreen} />
+      <Stack.Screen name="SalesOsPartyDetail" component={SalesOsPartyDetailScreen} />
+      <Stack.Screen name="SalesOsBrokerList" component={SalesOsBrokerListScreen} />
+      <Stack.Screen name="SalesOsBrokerDetail" component={SalesOsBrokerDetailScreen} />
+      <Stack.Screen name="SalesOsAreaList" component={SalesOsAreaListScreen} />
+      <Stack.Screen name="SalesOsAreaDetail" component={SalesOsAreaDetailScreen} />
+      <Stack.Screen name="SalesOsPartyGroupList" component={SalesOsPartyGroupListScreen} />
+      <Stack.Screen name="SalesOsPartyGroupDetail" component={SalesOsPartyGroupDetailScreen} />
+      <Stack.Screen name="SalesOsSalesPersonList" component={SalesOsSalesPersonListScreen} />
+      <Stack.Screen name="SalesOsSalesPersonDetail" component={SalesOsSalesPersonDetailScreen} />
+    </Stack.Navigator>
+  );
+};

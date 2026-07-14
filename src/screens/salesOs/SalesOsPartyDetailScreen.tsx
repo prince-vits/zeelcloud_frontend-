@@ -28,7 +28,7 @@ type Props = {
 
 
 export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { partyId, partyName, onlyDue } = route.params;
+  const { partyId, partyName, filter } = route.params;
   const [party, setParty] = useState<SalesOsParty | undefined>(undefined);
   const [invoices, setInvoices] = useState<SalesOsInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,16 +36,28 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
   const [calcVisible, setCalcVisible] = useState(false);
 
   useEffect(() => {
-    salesOsApi.getPartyById(partyId).then(setParty);
-    salesOsApi.getPartyInvoices(partyId).then((data) => {
-      setInvoices(data);
-      setLoading(false);
-    })
-      .catch(() => setLoading(false));
-  }, [partyId]);
+    setLoading(true);
+    Promise.all([
+      salesOsApi.getPartyById(partyId, filter),
+      salesOsApi.getPartyInvoices(partyId, filter),
+    ])
+      .then(([partyData, invoiceData]) => {
+        setParty(partyData ?? {
+          id: partyId,
+          name: partyName,
+          city: '',
+          totalOs: invoiceData.reduce((sum, inv) => sum + inv.outstanding, 0),
+          invoiceCount: invoiceData.length,
+          daysOverdue: 0,
+          lastPayment: '',
+        });
+        setInvoices(invoiceData);
+      })
+      .finally(() => setLoading(false));
+  }, [partyId, partyName, filter]);
 
   // "Only Due" (passed from the summary list) → show only overdue invoices.
-  const visibleInvoices = onlyDue ? invoices.filter((i) => i.daysLeft < 0) : invoices;
+  const visibleInvoices = filter.onlyDue ? invoices.filter((i) => i.daysLeft < 0) : invoices;
 
   const toggleBill = (id: string) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -74,7 +86,7 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
     });
   };
 
-  if (!party) return <LoadingOverlay visible message="Loading..." />;
+  if (loading || !party) return <LoadingOverlay visible message="Loading..." />;
 
   return (
     <View style={styles.container}>
@@ -144,7 +156,7 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
         <Card style={styles.invoicesCard}>
           <View style={styles.invoicesHeader}>
             <Text style={styles.cardTitle}>
-              {onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
+              {filter?.onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
             </Text>
             {visibleInvoices.length > 0 ? (
               <TouchableOpacity style={styles.selectAll} onPress={toggleSelectAll} activeOpacity={0.7}>

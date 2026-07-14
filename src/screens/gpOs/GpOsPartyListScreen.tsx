@@ -32,13 +32,13 @@ export const GpOsPartyListScreen: React.FC<Props> = ({ navigation, route }) => {
   // Re-fetch whenever a toggle changes (mirrors the OG getSummary() re-fetch).
   useEffect(() => {
     setLoading(true);
-    const filter = { ...route.params.filter, onlyDue, commonCompany, companyId: selectedCompany?.id };
+    const filter = { ...route.params.filter, onlyDue, commonCompany, companyId: String(selectedCompany?.recordId || selectedCompany?.id) };
     gpOsApi.getParties(filter).then((data) => {
       setParties(data);
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [onlyDue, commonCompany]);
+  }, [onlyDue, commonCompany, selectedCompany?.recordId, selectedCompany?.id]);
 
   const lowerSearch = search.toLowerCase();
   const filtered = parties.filter(
@@ -52,7 +52,11 @@ export const GpOsPartyListScreen: React.FC<Props> = ({ navigation, route }) => {
   const renderItem = ({ item }: { item: GpOsParty }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => navigation.navigate('GpOsPartyDetail', { partyId: item.id, partyName: item.name, onlyDue, commonCompany })}
+      onPress={() => navigation.navigate('GpOsPartyDetail', {
+        partyId: item.id,
+        partyName: item.name,
+        filter: { ...route.params.filter, onlyDue, commonCompany, companyId: String(selectedCompany?.recordId || selectedCompany?.id) },
+      })}
       activeOpacity={0.85}
     >
       <View style={styles.avatar}>
