@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
+import { CompanyStrip } from '../../components/CompanyStrip';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { stockApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
-import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { NonIssueStackParamList, StockItem } from '../../types';
 
@@ -35,30 +35,43 @@ export const NonIssueSelectionScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true; // guard against a stale response after company switch/unmount
+    setLoading(true);
     stockApi
       .getAll(selectedCompany?.id)
       .then((data) => {
+        if (!active) return;
         setStock(data);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (active) setStock([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [selectedCompany?.id]);
 
   const statsFor = (r: NonIssueReport) => {
     const items = stock.filter((s) => s.category === r.category);
-    const value = items.reduce((sum, s) => sum + s.value, 0);
-    return { count: items.length, value };
+    const qty = items.reduce((sum, s) => sum + s.qty, 0);
+    return { count: items.length, qty };
   };
 
+  // Selection page — cards, not a table. The tabular layout belongs on the
+  // actual data screens (yarn / gray / beam item-wise summaries).
   return (
     <View style={styles.container}>
       <GradientHeader title="Non-Issue" subtitle="Pending stock reports" onBack={() => navigation.goBack()} />
+      <CompanyStrip />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.hint}>Stock that has not yet been issued to production</Text>
 
         {reports.map((r) => {
-          const { count, value } = statsFor(r);
+          const { count, qty } = statsFor(r);
           return (
             <TouchableOpacity
               key={r.report}
@@ -74,7 +87,7 @@ export const NonIssueSelectionScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.desc}>{r.desc}</Text>
                 {!loading ? (
                   <Text style={styles.stats}>
-                    {count} items · <Text style={{ color: r.accent }}>{formatCurrency(value)}</Text>
+                    {count} items · <Text style={{ color: r.accent }}>{qty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
                   </Text>
                 ) : null}
               </View>

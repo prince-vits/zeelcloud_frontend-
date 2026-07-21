@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
+import { CompanyStrip } from '../../components/CompanyStrip';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { stockApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
-import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { StockStackParamList, StockItem } from '../../types';
 
@@ -46,19 +46,22 @@ export const StockScreen: React.FC<Props> = ({ navigation }) => {
 
   const statsFor = (r: StockReport) => {
     const items = stock.filter((s) => s.category === r.category);
-    const value = items.reduce((sum, s) => sum + s.value, 0);
-    return { count: items.length, value };
+    const qty = items.reduce((sum, s) => sum + s.qty, 0);
+    return { count: items.length, qty };
   };
 
+  // Selection page — cards, not a table. The tabular layout belongs on the
+  // actual data screens (yarn / gray / beam item-wise summaries).
   return (
     <View style={styles.container}>
       <GradientHeader title="Stock" subtitle="Inventory reports" />
+      <CompanyStrip />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.hint}>Select a report to view its inventory</Text>
 
         {reports.map((r) => {
-          const { count, value } = statsFor(r);
+          const { count, qty } = statsFor(r);
           return (
             <TouchableOpacity
               key={r.report}
@@ -74,7 +77,7 @@ export const StockScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.desc}>{r.desc}</Text>
                 {!loading ? (
                   <Text style={styles.stats}>
-                    {count} items · <Text style={{ color: r.accent }}>{formatCurrency(value)}</Text>
+                    {count} items · <Text style={{ color: r.accent }}>{qty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
                   </Text>
                 ) : null}
               </View>

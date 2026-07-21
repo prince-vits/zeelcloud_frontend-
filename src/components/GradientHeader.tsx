@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from './ZIcon';
+import { LastSyncBadge } from './LastSyncBadge';
 import { Colors, Typography, Spacing } from '../theme';
 
 interface GradientHeaderProps {
@@ -50,6 +51,7 @@ export const GradientHeader: React.FC<GradientHeaderProps> = ({
           <View style={styles.backPlaceholder} />
         )}
       </View>
+      <LastSyncBadge />
     </View>
   );
 };

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
 import { Card } from '../../components/Card';
+import { DateField } from '../../components/DateField';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import { rangeFor, PeriodKey } from '../../utils/dateRange';
+import { OG_START_DATE, todayIso } from '../../utils/formatDate';
 import type { PurchaseOsStackParamList, ReportFilter } from '../../types';
 
 type Props = {
@@ -25,9 +27,10 @@ const quickPresets: PeriodKey[] = ['This Week', 'This Month', 'This Quarter', 'T
 export const PurchaseOsFilterScreen: React.FC<Props> = ({ navigation }) => {
   const { selectedCompany } = useCompanyStore();
   const [reportType, setReportType] = useState('party');
-  const [activePreset, setActivePreset] = useState<PeriodKey | 'Custom'>('This Month');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  // OG default range: From 01/04/2017 → To today (matches the .NET FromdatePicker).
+  const [activePreset, setActivePreset] = useState<PeriodKey | 'Custom'>('Custom');
+  const [fromDate, setFromDate] = useState(OG_START_DATE);
+  const [toDate, setToDate] = useState(todayIso());
 
   React.useEffect(() => {
     if (activePreset !== 'Custom') {
@@ -85,31 +88,11 @@ export const PurchaseOsFilterScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.label}>Date Range</Text>
           <View style={styles.dateRow}>
             <View style={styles.dateField}>
-              <Text style={styles.dateLabel}>From</Text>
-              <View style={styles.dateInput}>
-                <Icon name="calendar-outline" size={16} color={Colors.gradientEnd} />
-                <TextInput
-                  style={styles.dateValue}
-                  value={fromDate}
-                  onChangeText={(val) => handleCustomDateChange('from', val)}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={Colors.gray400}
-                />
-              </View>
+              <DateField label="From" value={fromDate} defaultDate={OG_START_DATE} onChange={(val) => handleCustomDateChange('from', val)} />
             </View>
             <Icon name="arrow-right" size={18} color={Colors.gray400} style={styles.arrow} />
             <View style={styles.dateField}>
-              <Text style={styles.dateLabel}>To</Text>
-              <View style={styles.dateInput}>
-                <Icon name="calendar-outline" size={16} color={Colors.gradientEnd} />
-                <TextInput
-                  style={styles.dateValue}
-                  value={toDate}
-                  onChangeText={(val) => handleCustomDateChange('to', val)}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={Colors.gray400}
-                />
-              </View>
+              <DateField label="To" value={toDate} onChange={(val) => handleCustomDateChange('to', val)} />
             </View>
           </View>
           <Text style={styles.presetLabel}>Quick Presets</Text>

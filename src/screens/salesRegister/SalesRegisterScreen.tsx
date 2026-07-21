@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
 import { SearchBar } from '../../components/SearchBar';
 import { SelectField } from '../../components/SelectField';
 import { Card } from '../../components/Card';
+import { DateField } from '../../components/DateField';
 import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
@@ -15,6 +16,7 @@ import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme'
 import type { SalesRegisterStackParamList, RegisterEntry } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { PERIOD_OPTIONS, PeriodKey, rangeFor, withinRange } from '../../utils/dateRange';
+import { OG_START_DATE, toDDMMYY } from '../../utils/formatDate';
 
 type Props = {
   navigation: NativeStackNavigationProp<SalesRegisterStackParamList, 'SalesRegister'>;
@@ -77,7 +79,7 @@ export const SalesRegisterScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.cardFooter}>
         <View style={styles.dateRow}>
           <Icon name="calendar-outline" size={13} color={Colors.textSecondary} />
-          <Text style={styles.date}>{item.date}</Text>
+          <Text style={styles.date}>{toDDMMYY(item.date)}</Text>
         </View>
         <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
       </View>
@@ -93,31 +95,11 @@ export const SalesRegisterScreen: React.FC<Props> = ({ navigation }) => {
         <SelectField label="Period" value={period} options={PERIOD_OPTIONS} onSelect={handlePeriod} leftIcon="calendar-range" />
         <View style={styles.dateRow}>
           <View style={styles.dateField}>
-            <Text style={styles.filterLabel}>From</Text>
-            <View style={styles.dateInput}>
-              <Icon name="calendar" size={14} color={Colors.gradientStart} />
-              <TextInput
-                style={styles.dateInputText}
-                value={fromDate}
-                onChangeText={setFromDate}
-                placeholder="All"
-                placeholderTextColor={Colors.gray400}
-              />
-            </View>
+            <DateField label="From" value={fromDate} placeholder="All" defaultDate={OG_START_DATE} allowClear onChange={setFromDate} />
           </View>
           <Icon name="arrow-right" size={16} color={Colors.gray400} style={styles.arrow} />
           <View style={styles.dateField}>
-            <Text style={styles.filterLabel}>To</Text>
-            <View style={styles.dateInput}>
-              <Icon name="calendar" size={14} color={Colors.gradientStart} />
-              <TextInput
-                style={styles.dateInputText}
-                value={toDate}
-                onChangeText={setToDate}
-                placeholder="All"
-                placeholderTextColor={Colors.gray400}
-              />
-            </View>
+            <DateField label="To" value={toDate} placeholder="All" allowClear onChange={setToDate} />
           </View>
         </View>
         <View style={styles.totalRow}>

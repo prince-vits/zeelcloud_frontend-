@@ -1,6 +1,10 @@
+import { API_BASE_URL, API_HEADERS } from '../config';
 import { useAuthStore } from '../store/authStore';
+import { useSyncStore } from '../store/syncStore';
 import type {
   BankAccount,
+  BillDetail,
+  BillDetailItem,
   Company,
   GpOsInvoice,
   GpOsParty,
@@ -21,13 +25,6 @@ import type {
 } from '../types';
 
 type JsonRecord = Record<string, unknown>;
-
-const API_BASE_URL = 'https://shininess-magnifier-fructose.ngrok-free.dev/api/v1';
-const API_HEADERS = {
-  'Content-Type': 'application/json',
-  Accept: 'application/json',
-  'ngrok-skip-browser-warning': 'true',
-};
 
 export function getAuthToken(): string {
   const token = useAuthStore.getState().token;
@@ -52,6 +49,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
   }
+
+  // Every successful data fetch stamps the global "last sync" clock.
+  useSyncStore.getState().markSynced();
 
   if (response.status === 204) return undefined as T;
 
@@ -79,6 +79,8 @@ export const extractDataArray = (payload: unknown): JsonRecord[] => {
   if (Array.isArray(payload)) return payload.map(asRecord);
   const record = asRecord(payload);
   if (Array.isArray(record.data)) return record.data.map(asRecord);
+  // DRF LimitOffsetPagination wraps rows as {count, next, previous, results: []}.
+  if (Array.isArray(record.results)) return record.results.map(asRecord);
   return [];
 };
 
@@ -119,11 +121,42 @@ export function buildCompanyQuery(companyId?: string, extra?: Record<string, str
   return query ? `?${query}` : '';
 }
 
-const parseCity = (item: JsonRecord): string =>
-  asString(item.vv_area) ||
-  asString(item.vv_address1) ||
-  asString(item.vv_address) ||
-  asString(item.vv_address1);
+// The party-summary rows only carry name + balance + a `bills` array; the address,
+// phone and per-bill fields live INSIDE each bill. So when a top-level address field
+// is empty, fall back to the first bill's address — otherwise the party card subtitle
+// renders blank ("details are missing").
+const firstBill = (item: JsonRecord): JsonRecord => {
+  const bills = Array.isArray(item.bills) ? item.bills : [];
+  return bills.length ? asRecord(bills[0]) : {};
+};
+
+const parseCity = (item: JsonRecord): string => {
+  const b = firstBill(item);
+  return (
+    asString(item.vv_area) ||
+    asString(item.vv_address1) ||
+    asString(item.vv_address) ||
+    asString(b.vv_address1) ||
+    asString(b.vv_area) ||
+    asString(b.vv_city)
+  );
+};
+
+// Count of bills backing a party (party summary hardcodes nothing else).
+const billCount = (item: JsonRecord): number =>
+  Array.isArray(item.bills) ? item.bills.length : 0;
+
+// Party phone: top-level first, then the first bill's party / broker mobile.
+const parsePhone = (item: JsonRecord): string | undefined => {
+  const b = firstBill(item);
+  return (
+    asString(item.vv_mobile) ||
+    asString(item.vv_brocker_mobile) ||
+    asString(b.vv_mobile) ||
+    asString(b.vv_brocker_mobile) ||
+    undefined
+  );
+};
 
 export const mapCompany = (item: JsonRecord): Company => {
   const osRaw = asRecord(item.os);
@@ -172,6 +205,9 @@ export const mapBillToSalesInvoice = (item: JsonRecord, partyId: string): SalesO
     totalDueDays: asNumber(item.total_due_days),
     termDays: asNumber(item.vn_due_days),
     amountBeforeGst: asNumber(item.vn_amount_befor_gst ?? item.VN_Amount_Befor_Gst),
+    companyRef: asString(item.vv_cmp),
+    bookCode: asString(item.vv_book_code),
+    brokerName: asString(item.vv_brocker_name),
   };
 };
 
@@ -182,10 +218,10 @@ export const mapSalesOsParty = (item: JsonRecord): SalesOsParty => {
     name: asString(item.vv_party_name),
     city: parseCity(item),
     totalOs: asNumber(item.vn_balance__sum),
-    invoiceCount: 0,
+    invoiceCount: billCount(item),
     daysOverdue: 0,
     lastPayment: '',
-    phone: asString(item.vv_mobile) || asString(item.vv_brocker_mobile) || undefined,
+    phone: parsePhone(item),
     bills: Array.isArray(item.bills) ? item.bills.map(b => mapBillToSalesInvoice(asRecord(b), partyIdStr)) : undefined,
   };
 };
@@ -195,9 +231,9 @@ export const mapPurchaseOsParty = (item: JsonRecord): PurchaseOsParty => ({
   name: asString(item.vv_party_name),
   city: parseCity(item),
   totalOs: asNumber(item.vn_balance__sum),
-  invoiceCount: 0,
+  invoiceCount: billCount(item),
   daysOverdue: 0,
-  phone: asString(item.vv_mobile) || undefined,
+  phone: parsePhone(item),
 });
 
 export const mapGpOsParty = (item: JsonRecord): GpOsParty => ({
@@ -205,9 +241,9 @@ export const mapGpOsParty = (item: JsonRecord): GpOsParty => ({
   name: asString(item.vv_party_name),
   address: parseCity(item),
   totalOs: asNumber(item.vn_balance__sum),
-  invoiceCount: 0,
+  invoiceCount: billCount(item),
   daysOverdue: 0,
-  phone: asString(item.vv_mobile) || undefined,
+  phone: parsePhone(item),
 });
 
 export const mapSalesOsBroker = (item: JsonRecord): SalesOsBroker => ({
@@ -256,6 +292,9 @@ const mapBillToPurchaseInvoice = (item: JsonRecord, partyId: string): PurchaseOs
     totalDueDays: asNumber(item.total_due_days),
     termDays: asNumber(item.vn_due_days),
     amountBeforeGst: asNumber(item.vn_amount_befor_gst ?? item.VN_Amount_Befor_Gst),
+    companyRef: asString(item.vv_cmp),
+    bookCode: asString(item.vv_book_code),
+    brokerName: asString(item.vv_brocker_name),
   };
 };
 
@@ -306,8 +345,10 @@ export async function fetchPartyBills(
 
   if (type === 'sales') {
     const invoices = rows.map((row) => mapBillToSalesInvoice(row, partyId));
+    // Feed the bill rows into the mapper: the total row alone has no address /
+    // phone, so the detail info block would render blank without this fallback.
     const party = totalRow
-      ? mapSalesOsParty(totalRow)
+      ? mapSalesOsParty({ ...totalRow, bills: rows })
       : rows[0]
         ? {
             id: partyId,
@@ -326,7 +367,7 @@ export async function fetchPartyBills(
   if (type === 'purchase') {
     const invoices = rows.map((row) => mapBillToPurchaseInvoice(row, partyId));
     const party = totalRow
-      ? mapPurchaseOsParty(totalRow)
+      ? mapPurchaseOsParty({ ...totalRow, bills: rows })
       : rows[0]
         ? {
             id: partyId,
@@ -343,7 +384,7 @@ export async function fetchPartyBills(
 
   const invoices = rows.map(mapBillToGpInvoice);
   const party = totalRow
-    ? mapGpOsParty(totalRow)
+    ? mapGpOsParty({ ...totalRow, bills: rows })
     : rows[0]
       ? {
           id: partyId,
@@ -427,7 +468,9 @@ export function aggregateStockData(data: JsonRecord[], reportType: StockReportTy
 }
 
 export const mapYarnStockItem = (item: JsonRecord, category: 'yarn' | 'beam' | 'nonIssue'): StockItem => ({
-  id: asString(item.vv_item_name),
+  // Item name alone is NOT unique — a Quality + Lot report repeats the same item
+  // under several lot numbers, which produced duplicate React keys. Include the lot.
+  id: [asString(item.vv_item_name), asString(item.vv_lot_no)].filter(Boolean).join('|'),
   name: asString(item.vv_item_name),
   quality: asString(item.vv_item_name),
   qty: asNumber(item.vn_meter__sum ?? item.vn_weight__sum),
@@ -446,6 +489,81 @@ export const mapYarnStockItem = (item: JsonRecord, category: 'yarn' | 'beam' | '
   avgWt: asNumber(item.vn_weight__sum) / (asNumber(item.vv_taka_no__count) || 1),
   lotNo: asString(item.vv_lot_no),
 });
+
+
+// ─── Bill detail mapper (OG register bill pages) ──────────────────────────────
+// The register detail endpoints return the full model row plus `party_name`,
+// `items[]` and nested `account.party`. Field names follow the Django models
+// (Sales / Purchase / Generalpurchase + their item models).
+
+const composePartyAddress = (account: JsonRecord): string => {
+  const party = asRecord(account.party);
+  const bits = [
+    asString(party.vv_address1).trim(),
+    asString(party.vv_address2).trim(),
+    asString(party.vv_address3).trim(),
+    asString(party.vv_city).trim(),
+    party.vn_pin_code != null && party.vn_pin_code !== 0 ? String(party.vn_pin_code) : '',
+  ].filter(Boolean);
+  return bits.join(', ');
+};
+
+const mapBillItem = (row: JsonRecord, module: 'sales' | 'purchase' | 'gp'): BillDetailItem => {
+  const base = {
+    name: asString(row.vv_item_name) || asString(row.vv_item_code),
+    amount: asNumber(row.vn_amount),
+  };
+  if (module === 'sales') {
+    return {
+      ...base,
+      taka: asNumber(row.vn_taka_no),
+      pallu: asNumber(row.vn_cheese), // OG "Pallu" column binds VN_Cheese
+      meter: asNumber(row.vn_meter),
+      weight: asNumber(row.vn_weight),
+    };
+  }
+  if (module === 'purchase') {
+    return {
+      ...base,
+      nos: asNumber(row.vn_nung),
+      qty: asNumber(row.vn_qty),
+      cut: asNumber(row.vn_cut),
+    };
+  }
+  return { ...base, qty: asNumber(row.vn_qty) };
+};
+
+export const mapBillDetail = (record: JsonRecord, module: 'sales' | 'purchase' | 'gp'): BillDetail => {
+  const items = Array.isArray(record.items)
+    ? record.items.map((it) => mapBillItem(asRecord(it), module))
+    : [];
+  return {
+    id: String(record.id ?? record.vn_invoice_id ?? ''),
+    // vn_invoice_no can arrive as a string or a number depending on serializer.
+    invoiceNo:
+      record.vn_invoice_no != null && String(record.vn_invoice_no).trim() !== ''
+        ? String(record.vn_invoice_no)
+        : String(record.vn_invoice_id ?? ''),
+    date: asString(record.vd_invoice_date),
+    partyName: asString(record.party_name) || asString(asRecord(asRecord(record.account).party).vv_party_name),
+    partyAddress: composePartyAddress(asRecord(record.account)),
+    items,
+    grandTotal: asNumber(record.vn_grant_total),
+    claim: asNumber(record.vn_discount1),
+    discount: asNumber(record.vn_discount),
+    addOther1: asNumber(record.vn_add_other1),
+    addOther2: asNumber(record.vn_add_other2),
+    freight: asNumber(record.vn_freight_amt),
+    bFreight: asNumber(record.vn_bfreight_amt),
+    igst: asNumber(record.vn_igst),
+    sgst: asNumber(record.vn_sgst),
+    cgst: asNumber(record.vn_cgst),
+    addLess: asNumber(record.vn_add_less),
+    tcs: asNumber(record.vn_tcs_amount),
+    roundOf: asNumber(record.vn_round_of),
+    netAmount: asNumber(record.vn_net_total),
+  };
+};
 
 export function stockEndpoint(
   source: 'yarn' | 'beam' | 'gray' | 'sequance' | 'nonIssue',

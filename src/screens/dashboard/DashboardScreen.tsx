@@ -6,12 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { Card } from '../../components/Card';
 import { CompanySwitcher } from '../../components/CompanySwitcher';
+import { LastSyncBadge } from '../../components/LastSyncBadge';
 import { BookmarkEditModal } from '../../components/BookmarkEditModal';
 import { useBookmarkStore } from '../../store/bookmarkStore';
 import { APP_MODULES } from '../../data/modules';
 import { dashboardApi, companyApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrency, formatPercent } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { AppStackParamList, BankAccount } from '../../types';
 
@@ -28,6 +29,7 @@ export const DashboardScreen: React.FC = () => {
   const { selectedCompany } = useCompanyStore();
   const [osSummary, setOsSummary] = useState<OsSummary>({ totalPurchase: 0, totalSales: 0, totalGp: 0 });
   const [editingBookmarks, setEditingBookmarks] = useState(false);
+  const [selectedBar, setSelectedBar] = useState<string | null>(null);
 
   useEffect(() => {
     loadBookmarks();
@@ -57,6 +59,8 @@ export const DashboardScreen: React.FC = () => {
 
   ];
   const maxVal = Math.max(1, ...osBars.map((b) => b.value));
+  const totalOs = osBars.reduce((sum, b) => sum + b.value, 0);
+  const activeBar = osBars.find((b) => b.label === selectedBar) ?? null;
 
   return (
     <View style={styles.container}>
@@ -64,6 +68,7 @@ export const DashboardScreen: React.FC = () => {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <CompanySwitcher />
         <Text style={styles.title}>Dashboard</Text>
+        <LastSyncBadge />
       </View>
 
       <ScrollView
@@ -141,16 +146,58 @@ export const DashboardScreen: React.FC = () => {
             ))}
           </View>
           <View style={styles.chart}>
-            {osBars.map((b) => (
-              <View key={b.label} style={styles.barGroup}>
-                <View style={styles.barPair}>
-                  <View style={[styles.bar, { height: `${(b.value / maxVal) * 100}%`, backgroundColor: b.color }]} />
-                </View>
-                <Text style={styles.barLabel}>{b.label}</Text>
-                <Text style={styles.barValue}>{formatCurrency(b.value)}</Text>
-              </View>
-            ))}
+            {osBars.map((b) => {
+              const isActive = activeBar?.label === b.label;
+              return (
+                <TouchableOpacity
+                  key={b.label}
+                  style={styles.barGroup}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedBar(isActive ? null : b.label)}
+                >
+                  <View style={[styles.barPair, isActive && styles.barPairActive]}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          height: `${(b.value / maxVal) * 100}%`,
+                          backgroundColor: b.color,
+                          opacity: activeBar && !isActive ? 0.35 : 1,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.barLabel, isActive && styles.barLabelActive]}>{b.label}</Text>
+                  <Text style={styles.barValue}>{formatCurrency(b.value)}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+
+          {activeBar ? (
+            <View style={styles.tooltip}>
+              <View style={styles.tooltipHeader}>
+                <View style={[styles.legendDot, { backgroundColor: activeBar.color }]} />
+                <Text style={styles.tooltipTitle}>{activeBar.label} Outstanding</Text>
+              </View>
+              <View style={styles.tooltipRow}>
+                <Text style={styles.tooltipLabel}>Amount</Text>
+                <Text style={styles.tooltipValue}>{formatCurrency(activeBar.value)}</Text>
+              </View>
+              <View style={styles.tooltipRow}>
+                <Text style={styles.tooltipLabel}>Share of total O/S</Text>
+                <Text style={styles.tooltipValue}>
+                  {totalOs > 0 ? formatPercent((activeBar.value / totalOs) * 100) : '0'}%
+                </Text>
+              </View>
+              <View style={styles.tooltipRow}>
+                <Text style={styles.tooltipLabel}>Total O/S (all three)</Text>
+                <Text style={styles.tooltipValue}>{formatCurrency(totalOs)}</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.chartHint}>Tap a bar for details</Text>
+          )}
         </Card>
       </ScrollView>
 
@@ -277,6 +324,46 @@ const styles = StyleSheet.create({
   barGroup: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
   barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 130 },
   bar: { width: 28, borderTopLeftRadius: 6, borderTopRightRadius: 6, minHeight: 4 },
+  barPairActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.gradientStart,
+  },
   barLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 6 },
+  barLabelActive: { color: Colors.textPrimary, fontWeight: Typography.fontWeights.bold },
   barValue: { fontSize: 9, color: Colors.textMuted, marginTop: 2, textAlign: 'center' },
+  chartHint: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: Spacing.md,
+  },
+  tooltip: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  tooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  tooltipTitle: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+  },
+  tooltipRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  tooltipLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary },
+  tooltipValue: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.semiBold,
+    color: Colors.textPrimary,
+  },
 });

@@ -12,7 +12,7 @@ import { salesOsApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { SalesOsStackParamList, SalesOsArea } from '../../types';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrency, formatPercent } from '../../utils/currency';
 
 type Props = {
   navigation: NativeStackNavigationProp<SalesOsStackParamList, 'SalesOsAreaList'>;
@@ -27,7 +27,7 @@ export const SalesOsAreaListScreen: React.FC<Props> = ({ navigation, route }) =>
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [onlyDue, setOnlyDue] = useState(false);
-  const [commonCompany, setCommonCompany] = useState(selectedCompany?.isCommon ?? false);
+  const [commonCompany, setCommonCompany] = useState(false);
 
   // Re-fetch whenever a toggle changes (mirrors the OG getSummary() re-fetch).
   useEffect(() => {
@@ -66,7 +66,7 @@ export const SalesOsAreaListScreen: React.FC<Props> = ({ navigation, route }) =>
           </View>
           <View style={styles.metaRow}>
             <Text style={styles.meta}>{item.partyCount} parties</Text>
-            <Text style={styles.pct}>{pct.toFixed(1)}% of total</Text>
+            <Text style={styles.pct}>{formatPercent(pct)}% of total</Text>
           </View>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: color }]} />

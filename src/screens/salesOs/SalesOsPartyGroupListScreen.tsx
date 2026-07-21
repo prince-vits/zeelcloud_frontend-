@@ -28,7 +28,7 @@ export const SalesOsPartyGroupListScreen: React.FC<Props> = ({ navigation, route
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [onlyDue, setOnlyDue] = useState(false);
-  const [commonCompany, setCommonCompany] = useState(selectedCompany?.isCommon ?? false);
+  const [commonCompany, setCommonCompany] = useState(false);
 
   // Re-fetch whenever a toggle changes (mirrors the OG getSummary() re-fetch).
   useEffect(() => {

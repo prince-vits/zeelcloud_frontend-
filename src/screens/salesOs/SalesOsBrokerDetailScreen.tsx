@@ -4,14 +4,16 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
+import { CompanyStrip } from '../../components/CompanyStrip';
 import { Card } from '../../components/Card';
-import { Badge } from '../../components/Badge';
+import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
 import { salesOsApi } from '../../services/api';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { SalesOsStackParamList, SalesOsBroker, SalesOsParty, SalesOsInvoice } from '../../types';
 import { formatCurrency } from '../../utils/currency';
+import { toDDMMYY, toDDMMYYYY } from '../../utils/formatDate';
 
 type Props = {
   navigation: NativeStackNavigationProp<SalesOsStackParamList, 'SalesOsBrokerDetail'>;
@@ -57,6 +59,34 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
     setCalcVisible(true);
   };
 
+  // OG bill grid — same columns as the party detail page.
+  const billColumns: GridColumn<SalesOsInvoice>[] = [
+    {
+      key: 'sel', label: '', width: 30,
+      render: (inv) => (
+        <Icon
+          name={selectedIds.includes(inv.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
+          size={17}
+          color={selectedIds.includes(inv.id) ? Colors.gradientStart : Colors.gray400}
+        />
+      ),
+    },
+    { key: 'companyRef', label: 'Cmp', width: 38 },
+    { key: 'bookCode', label: 'Book', width: 42 },
+    { key: 'number', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.number}</GridText> },
+    { key: 'date', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
+    { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays ?? 0)}</GridText> },
+    {
+      key: 'dueDays', label: 'Due Days', width: 42,
+      render: (inv) => (
+        <GridText bold color={-inv.daysLeft > 0 ? Colors.danger : Colors.success}>
+          {String(-inv.daysLeft)}
+        </GridText>
+      ),
+    },
+    { key: 'outstanding', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+  ];
+
   const interestBills = selectedInvoices.map((inv) => toInterestBill(inv).bill);
   const firstTermDays = selectedInvoices.length ? toInterestBill(selectedInvoices[0]).termDays : 30;
 
@@ -66,6 +96,7 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
   return (
     <View style={styles.container}>
       <GradientHeader title="Sales O/s Broker Detail" subtitle={brokerName} onBack={() => navigation.goBack()} />
+      <CompanyStrip />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
         {/* Broker Summary */}
@@ -86,7 +117,7 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
           </View>
           {filter?.fromDate && filter?.toDate && (
             <Text style={styles.dateRange}>
-              From: {filter.fromDate}  To: {filter.toDate}
+              From: {toDDMMYYYY(filter.fromDate)}  To: {toDDMMYYYY(filter.toDate)}
             </Text>
           )}
           <View style={styles.totalRow}>
@@ -109,40 +140,16 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
                 <Text style={styles.partyTitle}>{party.name}</Text>
               </View>
 
-              {partyBills.map((inv) => {
-                const paidPct = Math.min(100, Math.round(((inv.amount - inv.outstanding) / inv.amount) * 100));
-                const checked = selectedIds.includes(inv.id);
-                return (
-                  <Card key={inv.id} style={styles.invoiceCard}>
-                    <TouchableOpacity style={styles.invoiceItem} onPress={() => toggleBill(inv.id)} activeOpacity={0.7}>
-                      <View style={styles.invHeader}>
-                        <View style={styles.invNumberRow}>
-                          <Icon
-                            name={checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                            size={22}
-                            color={checked ? Colors.gradientStart : Colors.gray400}
-                          />
-                          <Text style={styles.invNumber}>{inv.number}</Text>
-                        </View>
-                        <Badge
-                          label={inv.daysLeft < 0 ? `${Math.abs(inv.daysLeft)}d overdue` : `${inv.daysLeft}d left`}
-                          variant={inv.daysLeft < 0 ? 'overdue' : inv.daysLeft < 7 ? 'warning' : 'ok'}
-                        />
-                      </View>
-                      <View style={styles.invDetails}>
-                        <Text style={styles.invDate}>{inv.date}</Text>
-                        <View style={styles.invAmounts}>
-                          <Text style={styles.invTotal}>₹{(inv.amount / 100000).toFixed(1)}L</Text>
-                          <Text style={styles.invOs}>{formatCurrency(inv.outstanding)} OS</Text>
-                        </View>
-                      </View>
-                      <View style={styles.progressBar}>
-                        <View style={[styles.progressFill, { width: `${paidPct}%` }]} />
-                      </View>
-                    </TouchableOpacity>
-                  </Card>
-                );
-              })}
+              <View style={styles.tableBleed}>
+                <GridTable
+                  columns={billColumns}
+                  data={partyBills}
+                  keyExtractor={(inv, idx) => `${inv.id}-${idx}`}
+                  onRowPress={(inv) => toggleBill(inv.id)}
+                  rowStyle={(inv) => (selectedIds.includes(inv.id) ? styles.rowSelected : undefined)}
+                  emptyText="No bills"
+                />
+              </View>
               <View style={styles.partyFooter}>
                 <Text style={styles.partyFooterText}>Party Total {formatCurrency(party.totalOs)}</Text>
               </View>
@@ -189,6 +196,8 @@ const styles = StyleSheet.create({
   totalAmount: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
   
   partyContainer: { marginBottom: Spacing.lg },
+  tableBleed: { marginHorizontal: -Spacing.md, backgroundColor: Colors.surface },
+  rowSelected: { backgroundColor: Colors.purple100 },
   partyHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm, paddingHorizontal: Spacing.xs },
   partyTitle: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary, textTransform: 'uppercase' },
   

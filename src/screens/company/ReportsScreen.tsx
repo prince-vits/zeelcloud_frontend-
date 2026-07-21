@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../../components/ZIcon';
+import { LastSyncBadge } from '../../components/LastSyncBadge';
 import { useCompanyStore } from '../../store/companyStore';
 import { useBookmarkStore } from '../../store/bookmarkStore';
 import { useRecentReportsStore } from '../../store/recentReportsStore';
@@ -58,6 +59,7 @@ export const ReportsScreen: React.FC = () => {
             <Text style={styles.headerSub} numberOfLines={1}>
               {editing ? 'Tap a module to bookmark it' : selectedCompany?.name ?? 'All reports'}
             </Text>
+            <LastSyncBadge />
           </View>
           <TouchableOpacity style={styles.editBtn} onPress={() => setEditing((e) => !e)} activeOpacity={0.8}>
             <Icon name={editing ? 'check' : 'bookmark-outline'} size={15} color={Colors.primary} />

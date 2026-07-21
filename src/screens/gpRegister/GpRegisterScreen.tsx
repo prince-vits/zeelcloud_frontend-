@@ -11,6 +11,7 @@ import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { GpRegisterStackParamList, GpRegisterEntry } from '../../types';
 import { formatCurrency } from '../../utils/currency';
+import { toDDMMYY } from '../../utils/formatDate';
 
 type Props = {
   navigation: NativeStackNavigationProp<GpRegisterStackParamList, 'GpRegister'>;
@@ -84,7 +85,7 @@ export const GpRegisterScreen: React.FC<Props> = ({ navigation }) => {
           </View>
           <View style={styles.footer}>
             <Icon name="calendar-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.date}>{item.date}</Text>
+            <Text style={styles.date}>{toDDMMYY(item.date)}</Text>
           </View>
         </View>
       </TouchableOpacity>

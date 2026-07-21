@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,11 @@ import { ZIcon as Icon } from '../../components/ZIcon';
 import { Card } from '../../components/Card';
 import { InputField } from '../../components/InputField';
 import { SelectField } from '../../components/SelectField';
+import { SearchableSelect } from '../../components/SearchableSelect';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { CollapsibleSection } from '../../components/CollapsibleSection';
 import { useCompanyStore } from '../../store/companyStore';
+import { useColorStore } from '../../store/colorStore';
 import { itemsApi, accountsApi, salesOrdersApi } from '../../services/api';
 import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
@@ -33,6 +35,8 @@ interface DraftItem {
   color: string;
   nos: string;
   cut: string;
+  meter: string;            // manual meter override (empty = auto Nos×Cut)
+  meterManual: boolean;     // true once the user edits meter directly
   rate: string;
   loadingColor: boolean;    // true while fetching last-color
 }
@@ -58,19 +62,36 @@ const blankItem = (): DraftItem => ({
   color: '',
   nos: '',
   cut: '',
+  meter: '',
+  meterManual: false,
   rate: '',
   loadingColor: false,
 });
 
-const fmtNum = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+// Auto quantity = Nos × Cut; when there is no Cut (pieces-only) it falls back to Nos.
+const autoMeter = (it: DraftItem) => {
+  const nos = parseFloat(it.nos) || 0;
+  const cut = parseFloat(it.cut) || 0;
+  return cut > 0 ? nos * cut : nos;
+};
 
-const qtyOf = (it: DraftItem) => (parseFloat(it.nos) || 0) * (parseFloat(it.cut) || 0);
+// Effective quantity used for the amount: a manually-entered meter wins, otherwise
+// the auto Nos×Cut value. (Only-pcs → Nos; only-meter → the manual value.)
+const qtyOf = (it: DraftItem) =>
+  it.meterManual && it.meter.trim() !== '' ? parseFloat(it.meter) || 0 : autoMeter(it);
+
 const amountOf = (it: DraftItem) => qtyOf(it) * (parseFloat(it.rate) || 0);
 
 export const CreateSalesOrderScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<CompanyTabParamList>>();
   const { selectedCompany, companies } = useCompanyStore();
+  const { colors: savedColors, load: loadColors, addColors } = useColorStore();
+
+  // Load the persisted distinct colour list once.
+  useEffect(() => {
+    loadColors();
+  }, [loadColors]);
 
   // ── Form state ────────────────────────────────────────────────────────────
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(
@@ -97,6 +118,32 @@ export const CreateSalesOrderScreen: React.FC = () => {
   const companyOptions = companies.map((c) => c.name);
   const itemOptions = masterItems.map((i) => i.name);
   const partyOptions = masterParties.map((p) => p.name);
+
+  // Selected party's address / GST (shown under the party field).
+  const selectedParty = masterParties.find((p) => p.id === partyId);
+
+  // Colour dropdown options: persisted distinct list + any colours already typed
+  // into the current order (so the user sees them immediately), deduped.
+  const colorOptions = useMemo(() => {
+    const set = new Map<string, string>();
+    savedColors.forEach((c) => set.set(c.toLowerCase(), c));
+    items.forEach((it) => {
+      const c = it.color.trim();
+      if (c) set.set(c.toLowerCase(), c);
+    });
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [savedColors, items]);
+
+  // Party address subtitle lookup for the searchable party picker.
+  const partySubtitle = useCallback(
+    (name: string) => {
+      const p = masterParties.find((x) => x.name === name);
+      if (!p) return undefined;
+      const bits = [p.address, p.gstNo ? `GST: ${p.gstNo}` : ''].filter(Boolean);
+      return bits.join('  •  ') || undefined;
+    },
+    [masterParties],
+  );
 
   // ── Load master data (items + parties) on company change ──────────────────
   useEffect(() => {
@@ -221,8 +268,11 @@ export const CreateSalesOrderScreen: React.FC = () => {
           nos: parseFloat(it.nos) || 0,
           cut: parseFloat(it.cut) || 0,
           rate: parseFloat(it.rate) || 0,
+          meter: qtyOf(it),
         })),
       });
+      // Bind every colour used in this order into the persisted distinct list.
+      addColors(validItems.map((it) => it.color).filter(Boolean));
       Alert.alert(
         'Order Created Successfully ✓',
         `Sales order ${order.orderNo} for ${partyName} (${formatCurrency(order.totalAmount)}) has been created.`,
@@ -277,19 +327,19 @@ export const CreateSalesOrderScreen: React.FC = () => {
             open={detailsOpen}
             onToggle={() => setDetailsOpen((o) => !o)}
           >
-            {/* Row 1: Company | Order Number */}
+            {/* Company — full width */}
+            <SelectField
+              label="Company *"
+              value={selectedCompanyName}
+              options={companyOptions}
+              onSelect={handleCompanySelect}
+              placeholder="Select"
+              leftIcon="office-building-outline"
+              error={errors.company}
+            />
+
+            {/* Order Number | Order Date */}
             <View style={styles.grid2}>
-              <View style={styles.col}>
-                <SelectField
-                  label="Company *"
-                  value={selectedCompanyName}
-                  options={companyOptions}
-                  onSelect={handleCompanySelect}
-                  placeholder="Select"
-                  leftIcon="office-building-outline"
-                  error={errors.company}
-                />
-              </View>
               <View style={styles.col}>
                 <InputField
                   label="Order Number *"
@@ -300,10 +350,6 @@ export const CreateSalesOrderScreen: React.FC = () => {
                   error={errors.orderNumber}
                 />
               </View>
-            </View>
-
-            {/* Row 2: Order Date | Party */}
-            <View style={styles.grid2}>
               <View style={styles.col}>
                 <Text style={styles.fieldLabel}>Order Date *</Text>
                 <View style={styles.dateBox}>
@@ -311,18 +357,37 @@ export const CreateSalesOrderScreen: React.FC = () => {
                   <Text style={styles.dateText} numberOfLines={1}>{todayLabel()}</Text>
                 </View>
               </View>
-              <View style={styles.col}>
-                <SelectField
-                  label="Party / Customer *"
-                  value={partyName}
-                  options={partyOptions}
-                  onSelect={handlePartySelect}
-                  placeholder={loadingMaster ? 'Loading…' : 'Select'}
-                  leftIcon="account-outline"
-                  error={errors.party}
-                />
-              </View>
             </View>
+
+            {/* Party / Customer — full width, searchable, with address + GST below */}
+            <SearchableSelect
+              label="Party / Customer *"
+              value={partyName}
+              options={partyOptions}
+              onSelect={handlePartySelect}
+              onClear={() => { setPartyName(''); setPartyId(null); }}
+              placeholder={loadingMaster ? 'Loading…' : 'Search party by name'}
+              leftIcon="account-outline"
+              error={errors.party}
+              searchable
+              subtitleFor={partySubtitle}
+            />
+            {selectedParty && (selectedParty.address || selectedParty.gstNo) ? (
+              <View style={styles.partyMetaBox}>
+                {selectedParty.address ? (
+                  <View style={styles.partyMetaRow}>
+                    <Icon name="map-marker-outline" size={14} color={Colors.textSecondary} />
+                    <Text style={styles.partyMetaText}>{selectedParty.address}</Text>
+                  </View>
+                ) : null}
+                {selectedParty.gstNo ? (
+                  <View style={styles.partyMetaRow}>
+                    <Icon name="card-account-details-outline" size={14} color={Colors.textSecondary} />
+                    <Text style={styles.partyMetaText}>GST: {selectedParty.gstNo}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
 
             {/* Remarks */}
             <Text style={styles.fieldLabel}>Remarks</Text>
@@ -354,7 +419,6 @@ export const CreateSalesOrderScreen: React.FC = () => {
             }
           >
             {items.map((it, idx) => {
-              const qty = qtyOf(it);
               const amount = amountOf(it);
               return (
                 <Card key={it.id} style={styles.itemCard}>
@@ -386,21 +450,23 @@ export const CreateSalesOrderScreen: React.FC = () => {
                     <Text style={styles.suggestHint}>✨ Pre-filled from last order</Text>
                   ) : null}
 
-                  <SelectField
+                  <SearchableSelect
                     label="Color"
                     value={it.color}
-                    options={[]}   // free-entry via TextInput in SelectField; user can type
+                    options={colorOptions}
                     onSelect={(v) => updateItem(it.id, { color: v })}
                     onClear={() => updateItem(it.id, { color: '' })}
-                    placeholder="Enter or select color"
+                    placeholder="Type to add or pick a color"
                     leftIcon="palette-outline"
+                    searchable
+                    allowCustom
                   />
 
                   {/* Nos | Cut */}
                   <View style={styles.grid2}>
                     <View style={styles.col}>
                       <InputField
-                        label="Nos *"
+                        label="Nos (Pcs)"
                         value={it.nos}
                         onChangeText={(v) => updateItem(it.id, { nos: v })}
                         placeholder="0"
@@ -409,7 +475,7 @@ export const CreateSalesOrderScreen: React.FC = () => {
                     </View>
                     <View style={styles.col}>
                       <InputField
-                        label="Cut *"
+                        label="Cut"
                         value={it.cut}
                         onChangeText={(v) => updateItem(it.id, { cut: v })}
                         placeholder="0"
@@ -418,15 +484,33 @@ export const CreateSalesOrderScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  {/* Quantity calc block */}
-                  <View style={styles.calcBlock}>
-                    <View style={styles.calcInfo}>
-                      <Text style={styles.calcLabel}>Quantity (Nos × Cut)</Text>
-                      <Text style={styles.calcValue}>
-                        {fmtNum(qty)} <Text style={styles.calcUnit}>{QTY_UNIT}</Text>
-                      </Text>
-                    </View>
-                    <Icon name="calculator-variant-outline" size={22} color={Colors.primary} />
+                  {/* Meter — editable; auto = Nos × Cut, or type a value manually */}
+                  <View style={styles.meterHeader}>
+                    <Text style={styles.fieldLabel}>Total Meters</Text>
+                    {it.meterManual ? (
+                      <TouchableOpacity
+                        onPress={() => updateItem(it.id, { meter: '', meterManual: false })}
+                        style={styles.autoBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Icon name="refresh" size={13} color={Colors.primary} />
+                        <Text style={styles.autoBtnText}>Auto (Nos × Cut)</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.meterAutoHint}>Auto = Nos × Cut</Text>
+                    )}
+                  </View>
+                  <View style={styles.meterRow}>
+                    <Icon name="ruler" size={20} color={Colors.gray400} style={styles.leftIcon} />
+                    <TextInput
+                      style={styles.meterInput}
+                      value={it.meterManual ? it.meter : (autoMeter(it) ? String(autoMeter(it)) : '')}
+                      onChangeText={(v) => updateItem(it.id, { meter: v, meterManual: true })}
+                      placeholder="0"
+                      placeholderTextColor={Colors.gray400}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.meterUnit}>{QTY_UNIT}</Text>
                   </View>
 
                   {/* Rate | Amount */}
@@ -628,6 +712,35 @@ const styles = StyleSheet.create({
   calcLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginBottom: 2 },
   calcValue: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
   calcUnit: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.primary },
+  partyMetaBox: {
+    backgroundColor: Colors.gray50,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.sm,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.md,
+    gap: 4,
+  },
+  partyMetaRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  partyMetaText: { flex: 1, fontSize: Typography.fontSizes.xs, color: Colors.textSecondary },
+  meterHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
+  meterAutoHint: { fontSize: Typography.fontSizes.xs, color: Colors.textMuted },
+  autoBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  autoBtnText: { fontSize: Typography.fontSizes.xs, color: Colors.primary, fontWeight: Typography.fontWeights.semiBold },
+  meterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.gray50,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minHeight: 50,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  meterInput: { flex: 1, fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.semiBold },
+  meterUnit: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.primary },
   amountBlock: {
     backgroundColor: Colors.successLight,
     borderRadius: BorderRadius.md,

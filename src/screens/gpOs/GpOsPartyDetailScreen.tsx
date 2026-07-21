@@ -4,14 +4,17 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
+import { CompanyStrip } from '../../components/CompanyStrip';
 import { Card } from '../../components/Card';
 import { Badge, getDaysBadgeVariant } from '../../components/Badge';
+import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
 import { gpOsApi } from '../../services/api';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { GpOsStackParamList, GpOsParty, GpOsInvoice } from '../../types';
 import { formatCurrency } from '../../utils/currency';
+import { toDDMMYY } from '../../utils/formatDate';
 
 type Props = {
   navigation: NativeStackNavigationProp<GpOsStackParamList, 'GpOsPartyDetail'>;
@@ -83,6 +86,38 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
     setCalcVisible(true);
   };
 
+  // OG summary: broker comes from the party's bills (Vv_brocker_name).
+  const brokerName = invoices.find((i) => i.brokerName)?.brokerName;
+
+  // OG .NET grid (GPOsPartyDetailPage): same fit-to-width column layout.
+  const billColumns: GridColumn<GpOsInvoice>[] = [
+    {
+      key: 'sel', label: '', width: 30,
+      render: (inv) => (
+        <Icon
+          name={selectedIds.includes(inv.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
+          size={17}
+          color={selectedIds.includes(inv.id) ? Colors.gradientEnd : Colors.gray400}
+        />
+      ),
+    },
+    { key: 'companyRef', label: 'Cmp', width: 38 },
+    { key: 'bookCode', label: 'Book', width: 42 },
+    { key: 'billNo', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.billNo}</GridText> },
+    { key: 'billDate', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.billDate)}</GridText> },
+    { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays)}</GridText> },
+    { key: 'totalDueDays', label: 'Total Due', width: 42, render: (inv) => <GridText>{String(inv.totalDueDays)}</GridText> },
+    {
+      key: 'dueDays', label: 'Due Days', width: 42,
+      render: (inv) => (
+        <GridText bold color={inv.dueDays > 0 ? Colors.danger : Colors.success}>
+          {String(inv.dueDays)}
+        </GridText>
+      ),
+    },
+    { key: 'balance', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+  ];
+
   const handleShare = async () => {
     if (!party) return;
     const lines = visibleInvoices
@@ -112,32 +147,22 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
           </TouchableOpacity>
         }
       />
+      <CompanyStrip />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.badgeRow}>
-          <Badge
-            label={party.daysOverdue > 0 ? `${party.daysOverdue} days overdue` : 'No overdue'}
-            variant={getDaysBadgeVariant(party.daysOverdue)}
-          />
+        {/* OG-style summary header (GPOsPartyDetailPage): party, address, broker,
+            dates, Total O/s. */}
+        <View style={styles.ogSummary}>
+          <Text style={styles.ogParty}>{party.name}</Text>
+          {party.address ? <Text style={styles.ogAddress}>{party.address}</Text> : null}
+          <Text style={styles.ogLine}>Broker : {brokerName || 'DIRECT'}</Text>
+          {filter?.fromDate || filter?.toDate ? (
+            <Text style={styles.ogLine}>
+              From {toDDMMYY(filter.fromDate)}   To {toDDMMYY(filter.toDate)}
+            </Text>
+          ) : null}
+          <Text style={styles.ogTotal}>Total O/s : {formatCurrency(party.totalOs)}</Text>
+          <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
         </View>
-
-        {/* Summary */}
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Summary</Text>
-          <View style={styles.grid}>
-            {[
-              { label: 'Total OS', value: formatCurrency(party.totalOs), icon: 'currency-inr', color: Colors.gradientEnd },
-              { label: 'Invoices', value: String(party.invoiceCount), icon: 'file-document-multiple', color: Colors.info },
-            ].map((item) => (
-              <View key={item.label} style={styles.gridItem}>
-                <View style={[styles.gridIcon, { backgroundColor: item.color + '20' }]}>
-                  <Icon name={item.icon} size={18} color={item.color} />
-                </View>
-                <Text style={styles.gridValue}>{item.value}</Text>
-                <Text style={styles.gridLabel}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
 
         {/* Contact */}
         {party.phone && (
@@ -152,9 +177,9 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
           </Card>
         )}
 
-        {/* Bills */}
-        <Card style={styles.card}>
-          <View style={styles.invoicesHeader}>
+        {/* Bills — full-bleed table section (no card, edge-to-edge) */}
+        <View style={styles.invoicesSection}>
+          <View style={[styles.invoicesHeader, styles.sectionPad]}>
             <Text style={styles.cardTitle}>
               {onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
             </Text>
@@ -172,7 +197,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
           </View>
 
           {visibleInvoices.length > 0 ? (
-            <TouchableOpacity style={styles.selectAll} onPress={toggleSelectAll} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.selectAll, styles.sectionPad]} onPress={toggleSelectAll} activeOpacity={0.7}>
               <Icon
                 name={selectedIds.length === visibleInvoices.length ? 'checkbox-marked' : 'checkbox-blank-outline'}
                 size={18}
@@ -182,67 +207,28 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
             </TouchableOpacity>
           ) : null}
 
-          {visibleInvoices.length === 0 ? (
-            <Text style={styles.noInvoices}>No pending invoices</Text>
-          ) : visibleInvoices.map((inv) => {
-            const checked = selectedIds.includes(inv.id);
-            const overdue = inv.dueDays > 0;
-            const meta: { label: string; value: string; color?: string }[] = [
-              { label: 'Ref Cmp', value: inv.companyRef },
-              { label: 'Book Code', value: inv.bookCode },
-              { label: 'Bill Date', value: inv.billDate },
-              { label: 'Terms Days', value: String(inv.termDays) },
-              { label: 'Total Due', value: String(inv.totalDueDays) },
-              { label: 'Due Days', value: String(inv.dueDays), color: overdue ? Colors.danger : Colors.success },
-            ];
-            return (
-              <TouchableOpacity key={inv.id} style={styles.invoiceItem} onPress={() => toggleBill(inv.id)} activeOpacity={0.7}>
-                <View style={styles.invHeader}>
-                  <View style={styles.invNumberRow}>
-                    <Icon
-                      name={checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                      size={20}
-                      color={checked ? Colors.gradientEnd : Colors.gray400}
-                    />
-                    <Text style={styles.billNo}>{inv.billNo}</Text>
-                  </View>
-                  <View style={[styles.dueBadge, { backgroundColor: (overdue ? Colors.danger : Colors.success) + '1A' }]}>
-                    <Text style={[styles.dueBadgeText, { color: overdue ? Colors.danger : Colors.success }]}>
-                      {overdue ? `${inv.dueDays}d overdue` : 'Within terms'}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.metaGrid}>
-                  {meta.map((m) => (
-                    <View key={m.label} style={styles.metaItem}>
-                      <Text style={styles.metaLabel}>{m.label}</Text>
-                      <Text style={[styles.metaValue, m.color ? { color: m.color } : null]}>{m.value}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                <View style={styles.amountRow}>
-                  <Text style={styles.amountLabel}>Amount</Text>
-                  <Text style={styles.amountValue}>{formatCurrency(inv.balance)}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          <GridTable
+            columns={billColumns}
+            data={visibleInvoices}
+            keyExtractor={(inv, idx) => `${inv.id}-${idx}`}
+            onRowPress={(inv) => toggleBill(inv.id)}
+            rowStyle={(inv) => (selectedIds.includes(inv.id) ? styles.rowSelected : undefined)}
+            emptyText="No pending invoices"
+          />
 
           {visibleInvoices.length > 0 ? (
             <>
-              <View style={styles.selectedRow}>
+              <View style={[styles.selectedRow, styles.sectionPad]}>
                 <Text style={styles.selectedLabel}>Selected Bill Total</Text>
                 <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
               </View>
-              <TouchableOpacity style={styles.interestBtn} onPress={openCalculator} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.interestBtn, styles.interestBtnPad]} onPress={openCalculator} activeOpacity={0.85}>
                 <Icon name="calculator-variant-outline" size={18} color={Colors.textWhite} />
                 <Text style={styles.interestBtnText}>Interest Calculation</Text>
               </TouchableOpacity>
             </>
           ) : null}
-        </Card>
+        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -292,12 +278,38 @@ const styles = StyleSheet.create({
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   phone: { fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium },
 
+  // OG-style summary header block (light blue, like the .NET Blue400Accent frame).
+  ogSummary: {
+    backgroundColor: '#E7F0FE',
+    marginHorizontal: -Spacing.md,
+    marginTop: -Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  ogParty: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  ogAddress: { fontSize: Typography.fontSizes.sm, fontStyle: 'italic' as const, color: Colors.textSecondary, marginTop: 2 },
+  ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 4 },
+  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientEnd, marginTop: 6 },
+  ogSub: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
   invoicesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   onlyDueToggle: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   onlyDueLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textSecondary },
   switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
   selectAll: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: Spacing.sm },
   selectAllText: { fontSize: Typography.fontSizes.xs, color: Colors.gradientEnd, fontWeight: Typography.fontWeights.semiBold },
+  // Full-bleed table section: cancels the ScrollView's horizontal padding so the
+  // grid uses the entire screen width.
+  invoicesSection: {
+    backgroundColor: Colors.surface,
+    marginHorizontal: -Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  sectionPad: { paddingHorizontal: Spacing.md },
+  interestBtnPad: { marginHorizontal: Spacing.md },
+  rowSelected: { backgroundColor: Colors.purple100 },
 
   invoiceItem: { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: Spacing.sm },
   invHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },

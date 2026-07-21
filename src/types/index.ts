@@ -91,8 +91,11 @@ export interface Item {
 
 // Account / Party — from GET /api/v1/accounts/
 export interface AccountParty {
-  id: number;   // account DB id
-  name: string; // party name
+  id: number;      // account DB id
+  name: string;    // party name
+  address?: string; // vv_address1 (+ area / city)
+  gstNo?: string;  // vv_gstin_no
+  phone?: string;  // vv_mobile
 }
 
 // Sales Order — from GET /api/v1/sales-orders/
@@ -136,6 +139,7 @@ export interface CreateSalesOrderPayload {
     nos: number;
     cut: number;
     rate: number;
+    meter?: number; // effective quantity (manual meter, or nos×cut)
   }[];
 }
 
@@ -175,6 +179,10 @@ export interface SalesOsInvoice {
   totalDueDays?: number;
   termDays?: number;
   amountBeforeGst?: number;
+  // OG grid columns (SalesOsPartyDetailPage): Vv_cmp, Vv_book_code
+  companyRef?: string;
+  bookCode?: string;
+  brokerName?: string; // vv_brocker_name (OG summary: "Broker : X")
 }
 
 export interface SalesOsBroker {
@@ -231,6 +239,10 @@ export interface PurchaseOsInvoice {
   totalDueDays?: number;
   termDays?: number;
   amountBeforeGst?: number;
+  // OG grid columns (SalesOsPartyDetailPage): Vv_cmp, Vv_book_code
+  companyRef?: string;
+  bookCode?: string;
+  brokerName?: string; // vv_brocker_name (OG summary: "Broker : X")
 }
 
 // GP Outstanding (General Purchase) — party-wise summary
@@ -277,6 +289,44 @@ export interface GpOsInvoice {
 export interface GpOsPartyTotal {
   partyId: number;      // Vn_party_id
   totalBalance: number; // Vn_balance__sum
+}
+
+// ─── Bill Details (OG SalesRegisterDetails / PurchaseRegisterDetails / GPRegisterDetails) ──
+// Items differ per module: sales → Taka|Pallu|Meter|Weight; purchase → Nos|Qty|Cut; gp → Qty.
+export interface BillDetailItem {
+  name: string;    // VV_Item_Name
+  taka?: number;   // VN_Taka_No (sales)
+  pallu?: number;  // VN_Cheese  (sales — OG "Pallu" column binds VN_Cheese)
+  meter?: number;  // VN_Meter   (sales)
+  weight?: number; // VN_Weight  (sales)
+  nos?: number;    // VN_Nung    (purchase)
+  qty?: number;    // VN_Qty     (purchase / gp)
+  cut?: number;    // VN_Cut     (purchase)
+  amount: number;  // VN_Amount
+}
+
+export interface BillDetail {
+  id: string;
+  invoiceNo: string;    // vn_invoice_no
+  date: string;         // vd_invoice_date (ISO)
+  partyName: string;    // party_name
+  partyAddress: string; // account.party address1..3 + city + pin
+  items: BillDetailItem[];
+  // OG totals block (label → field):
+  grandTotal: number;   // Grand Total → vn_grant_total
+  claim: number;        // Claim      → vn_discount1
+  discount: number;     // Discout    → vn_discount
+  addOther1: number;    // Add Other  → vn_add_other1
+  addOther2: number;    // Add Other  → vn_add_other2
+  freight: number;      // Freight    → vn_freight_amt
+  bFreight: number;     // Freight(2) → vn_bfreight_amt
+  igst: number;         // vn_igst
+  sgst: number;         // vn_sgst
+  cgst: number;         // vn_cgst
+  addLess: number;      // vn_add_less
+  tcs: number;          // vn_tcs_amount
+  roundOf: number;      // vn_round_of
+  netAmount: number;    // NET AMOUNT → vn_net_total
 }
 
 // Registers

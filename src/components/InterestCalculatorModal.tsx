@@ -50,7 +50,7 @@ const leapYearDays = (): number => {
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const formatMoney = (n: number): string =>
-  `₹ ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₹ ${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 interface InterestCalculatorModalProps {
   visible: boolean;
@@ -83,7 +83,7 @@ export const InterestCalculatorModal: React.FC<InterestCalculatorModalProps> = (
     setRate('18');
     setAnnualDays(String(leapYearDays()));
     setDueDays(String(defaultDueDays));
-    setUnpaidAmount(principalSum(false).toFixed(2));
+    setUnpaidAmount(String(Math.round(principalSum(false) * 100) / 100));
     setInterest(null);
     setNetAmount(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,7 +91,7 @@ export const InterestCalculatorModal: React.FC<InterestCalculatorModalProps> = (
 
   const selectBasis = (basic: boolean) => {
     setOnBasic(basic);
-    setUnpaidAmount(principalSum(basic).toFixed(2));
+    setUnpaidAmount(String(Math.round(principalSum(basic) * 100) / 100));
     setInterest(null);
     setNetAmount(null);
   };
@@ -108,8 +108,16 @@ export const InterestCalculatorModal: React.FC<InterestCalculatorModalProps> = (
       intAmount += round2(((p * r) / 100 / dY) * (b.totalDueDays - grace));
     });
     const principal = principalSum(onBasic);
+
+    // Profita logic: GST (5%) is added on the interest and TDS (10%) is deducted
+    // from it — Net Interest After TDS = interest + GST − TDS; the net amount is
+    // the selected bill amount plus that net interest.
+    const gst = round2(intAmount * 0.05);
+    const tds = round2(intAmount * 0.10);
+    const netInterest = round2(intAmount + gst - tds);
+
     setInterest(intAmount);
-    setNetAmount(principal + intAmount);
+    setNetAmount(principal + netInterest);
   };
 
   const handleExit = () => {
@@ -163,7 +171,7 @@ export const InterestCalculatorModal: React.FC<InterestCalculatorModalProps> = (
             </View>
 
             <Text style={styles.billsNote}>
-              {bills.length} bill{bills.length > 1 ? 's' : ''} selected · Simple interest
+              {bills.length} bill{bills.length > 1 ? 's' : ''} selected · Simple interest + GST 5% − TDS 10%
             </Text>
           </ScrollView>
 

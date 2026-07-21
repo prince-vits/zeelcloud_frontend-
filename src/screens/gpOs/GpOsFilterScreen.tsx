@@ -4,10 +4,12 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
 import { Card } from '../../components/Card';
+import { DateField } from '../../components/DateField';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import { rangeFor, PeriodKey } from '../../utils/dateRange';
+import { OG_START_DATE, todayIso } from '../../utils/formatDate';
 import type { GpOsStackParamList, ReportFilter } from '../../types';
 
 type Props = {
@@ -18,11 +20,25 @@ const quickPresets: PeriodKey[] = ['This Week', 'This Month', 'This Quarter', 'T
 
 export const GpOsFilterScreen: React.FC<Props> = ({ navigation }) => {
   const { selectedCompany } = useCompanyStore();
-  const [activePreset, setActivePreset] = useState<PeriodKey>('This Month');
-  // Dates derived dynamically from the selected preset — no hard-coded values.
-  const range = rangeFor(activePreset);
-  const fromDate = range?.from ?? '';
-  const toDate = range?.to ?? '';
+  // OG default range: From 01/04/2017 → To today (matches the .NET FromdatePicker).
+  const [activePreset, setActivePreset] = useState<PeriodKey | 'Custom'>('Custom');
+  const [fromDate, setFromDate] = useState(OG_START_DATE);
+  const [toDate, setToDate] = useState(todayIso());
+
+  // Initialize dates from default preset
+  React.useEffect(() => {
+    if (activePreset !== 'Custom') {
+      const range = rangeFor(activePreset);
+      setFromDate(range?.from ?? '');
+      setToDate(range?.to ?? '');
+    }
+  }, [activePreset]);
+
+  const handleCustomDateChange = (field: 'from' | 'to', value: string) => {
+    setActivePreset('Custom');
+    if (field === 'from') setFromDate(value);
+    else setToDate(value);
+  };
 
   const handleGenerate = () => {
     // GP OS is party-wise only.
@@ -53,19 +69,11 @@ export const GpOsFilterScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.label}>Date Range</Text>
           <View style={styles.dateRow}>
             <View style={styles.dateField}>
-              <Text style={styles.dateLabel}>From</Text>
-              <View style={styles.dateInput}>
-                <Icon name="calendar-outline" size={16} color={Colors.gradientEnd} />
-                <Text style={styles.dateValue}>{fromDate}</Text>
-              </View>
+              <DateField label="From" value={fromDate} defaultDate={OG_START_DATE} onChange={(val) => handleCustomDateChange('from', val)} />
             </View>
             <Icon name="arrow-right" size={18} color={Colors.gray400} style={styles.arrow} />
             <View style={styles.dateField}>
-              <Text style={styles.dateLabel}>To</Text>
-              <View style={styles.dateInput}>
-                <Icon name="calendar-outline" size={16} color={Colors.gradientEnd} />
-                <Text style={styles.dateValue}>{toDate}</Text>
-              </View>
+              <DateField label="To" value={toDate} onChange={(val) => handleCustomDateChange('to', val)} />
             </View>
           </View>
           <Text style={styles.presetLabel}>Quick Presets</Text>

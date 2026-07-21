@@ -1,0 +1,52 @@
+import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Distinct list of colours the user has used in sales orders. Colours are added
+// (manually typed or picked) and, on save, bound into this list — deduped, case-
+// insensitively — then persisted so the colour dropdown auto-fills next time.
+const STORAGE_KEY = 'zeel_order_colors';
+
+interface ColorState {
+  colors: string[];
+  loaded: boolean;
+  load: () => Promise<void>;
+  addColors: (incoming: string[]) => void;
+}
+
+// Merge new colours into the existing list, trimming blanks and de-duplicating
+// case-insensitively while keeping the first-seen spelling.
+const mergeDistinct = (existing: string[], incoming: string[]): string[] => {
+  const seen = new Map(existing.map((c) => [c.toLowerCase(), c]));
+  for (const raw of incoming) {
+    const c = raw.trim();
+    if (!c) continue;
+    const key = c.toLowerCase();
+    if (!seen.has(key)) seen.set(key, c);
+  }
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+};
+
+export const useColorStore = create<ColorState>((set, get) => ({
+  colors: [],
+  loaded: false,
+
+  load: async () => {
+    if (get().loaded) return;
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+      const colors = Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === 'string') : [];
+      set({ colors, loaded: true });
+    } catch {
+      set({ loaded: true });
+    }
+  },
+
+  addColors: (incoming: string[]) => {
+    const next = mergeDistinct(get().colors, incoming);
+    // Only write if something actually changed.
+    if (next.length === get().colors.length) return;
+    set({ colors: next });
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+  },
+}));

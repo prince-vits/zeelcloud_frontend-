@@ -15,6 +15,7 @@ import { ZIcon as Icon } from '../../components/ZIcon';
 import { useAuthStore } from '../../store/authStore';
 import { InputField } from '../../components/InputField';
 import { PrimaryButton } from '../../components/PrimaryButton';
+import { API_BASE_URL } from '../../config';
 import { Colors, Typography, Spacing } from '../../theme';
 import type { RootStackParamList } from '../../types';
 
@@ -152,6 +153,8 @@ export const LoginScreen: React.FC<Props> = () => {
         </View>
 
         <Text style={styles.version}>Version 1.0.0</Text>
+        {/* Diagnostic: the exact server the app is talking to. */}
+        <Text style={styles.serverHint}>server: {API_BASE_URL}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -273,4 +276,11 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: Spacing.xl,
   },
+  serverHint: {
+    textAlign: 'center',
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 4,
+  },
 });
+

@@ -1,35 +1,36 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Switch, Linking, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
+import { CompanyStrip } from '../../components/CompanyStrip';
 import { SearchBar } from '../../components/SearchBar';
-import { Badge, getDaysBadgeVariant } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { OutstandingToggleBar } from '../../components/OutstandingToggleBar';
 import { gpOsApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { GpOsStackParamList, GpOsParty } from '../../types';
-import { formatCurrency } from '../../utils/currency';
-import { getInitials } from '../../utils/strings';
+import { toDDMMYYYY } from '../../utils/formatDate';
 
 type Props = {
   navigation: NativeStackNavigationProp<GpOsStackParamList, 'GpOsPartyList'>;
   route: RouteProp<GpOsStackParamList, 'GpOsPartyList'>;
 };
 
+const money = (n: number) =>
+  n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+// OG "GP O/s Party Wise Summary" — same layout as the Sales party page.
 export const GpOsPartyListScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCompany } = useCompanyStore();
   const [parties, setParties] = useState<GpOsParty[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [onlyDue, setOnlyDue] = useState(false);
-  const [commonCompany, setCommonCompany] = useState(selectedCompany?.isCommon ?? false);
+  const [commonCompany, setCommonCompany] = useState(false);
 
-  // Re-fetch whenever a toggle changes (mirrors the OG getSummary() re-fetch).
   useEffect(() => {
     setLoading(true);
     const filter = { ...route.params.filter, onlyDue, commonCompany, companyId: String(selectedCompany?.recordId || selectedCompany?.id) };
@@ -48,66 +49,93 @@ export const GpOsPartyListScreen: React.FC<Props> = ({ navigation, route }) => {
   );
 
   const totalOs = parties.reduce((sum, p) => sum + p.totalOs, 0);
+  const fromDate = route.params.filter?.fromDate;
+  const toDate = route.params.filter?.toDate;
+
+  const call = (phone?: string) => phone && Linking.openURL(`tel:${phone}`).catch(() => {});
+  const whatsapp = (phone?: string) =>
+    phone && Linking.openURL(`whatsapp://send?phone=91${phone.replace(/\D/g, '').slice(-10)}`).catch(() => {});
 
   const renderItem = ({ item }: { item: GpOsParty }) => (
     <TouchableOpacity
-      style={styles.card}
+      style={styles.row}
       onPress={() => navigation.navigate('GpOsPartyDetail', {
         partyId: item.id,
         partyName: item.name,
         filter: { ...route.params.filter, onlyDue, commonCompany, companyId: String(selectedCompany?.recordId || selectedCompany?.id) },
       })}
-      activeOpacity={0.85}
+      activeOpacity={0.7}
     >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
+      <View style={styles.rowLeft}>
+        <Text style={styles.partyName} numberOfLines={1}>{item.name}</Text>
+        {item.address ? <Text style={styles.address} numberOfLines={2}>{item.address}</Text> : null}
+        {item.phone ? <Text style={styles.phone}>{item.phone}</Text> : null}
       </View>
-      <View style={styles.info}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-          <Badge
-            label={item.daysOverdue > 0 ? `${item.daysOverdue}d` : 'OK'}
-            variant={getDaysBadgeVariant(item.daysOverdue)}
-          />
-        </View>
-        <View style={styles.metaRow}>
-          <Icon name="map-marker-outline" size={12} color={Colors.textSecondary} />
-          <Text style={styles.meta}>{item.address}</Text>
-          <Text style={styles.dot}>•</Text>
-          <Text style={styles.meta}>{item.invoiceCount} invoices</Text>
-        </View>
-        <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>Outstanding</Text>
-          <Text style={styles.amount}>{formatCurrency(item.totalOs)}</Text>
+      <View style={styles.rowRight}>
+        <Text style={styles.amount}>₹ {money(item.totalOs)}</Text>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={[styles.actionBtn, styles.callBtn]} onPress={() => call(item.phone)} activeOpacity={0.7}>
+            <Icon name="phone" size={14} color={Colors.danger} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, styles.waBtn]} onPress={() => whatsapp(item.phone)} activeOpacity={0.7}>
+            <Icon name="whatsapp" size={14} color="#25D366" />
+          </TouchableOpacity>
         </View>
       </View>
-      <Icon name="chevron-right" size={18} color={Colors.gray300} />
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <GradientHeader title="GP Outstanding" subtitle="Party Wise" onBack={() => navigation.goBack()} />
-      <OutstandingToggleBar
-        onlyDue={onlyDue}
-        commonCompany={commonCompany}
-        onOnlyDueChange={setOnlyDue}
-        onCommonCompanyChange={setCommonCompany}
-      />
-      <View style={styles.summary}>
-        <Text style={styles.summaryText}>Total OS: {formatCurrency(totalOs)}</Text>
-        <Text style={styles.summaryText}>{parties.length} parties</Text>
+      <GradientHeader title="GP O/s Party Wise Summary" onBack={() => navigation.goBack()} />
+      <CompanyStrip />
+
+      <View style={styles.infoFrame}>
+        <Text style={styles.totalLine}>Total O/s Amount : ₹ {money(totalOs)}</Text>
+        {fromDate || toDate ? (
+          <Text style={styles.periodLine}>
+            From: {toDDMMYYYY(fromDate)}   To: {toDDMMYYYY(toDate)}
+          </Text>
+        ) : null}
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Search Party" />
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleItem}>
+            <Text style={styles.toggleLabel}>Only Due</Text>
+            <Switch
+              value={onlyDue}
+              onValueChange={setOnlyDue}
+              trackColor={{ false: Colors.gray300, true: Colors.primary }}
+              thumbColor={Colors.surface}
+              ios_backgroundColor={Colors.gray300}
+              style={styles.switch}
+            />
+          </View>
+          <View style={styles.toggleItem}>
+            <Text style={styles.toggleLabel}>Common Company</Text>
+            <Switch
+              value={commonCompany}
+              onValueChange={setCommonCompany}
+              trackColor={{ false: Colors.gray300, true: Colors.primary }}
+              thumbColor={Colors.surface}
+              ios_backgroundColor={Colors.gray300}
+              style={styles.switch}
+            />
+          </View>
+        </View>
       </View>
-      <View style={styles.searchWrapper}>
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Search parties..." />
+
+      <View style={styles.tableHeader}>
+        <Text style={styles.th}>Party Name</Text>
+        <Text style={[styles.th, styles.thRight]}>Amount</Text>
       </View>
+
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<EmptyState icon="account-search" title="No parties found" />}
+        ListEmptyComponent={!loading ? <EmptyState icon="account-search" title="No parties found" /> : null}
       />
       <LoadingOverlay visible={loading} message="Loading..." />
     </View>
@@ -116,44 +144,56 @@ export const GpOsPartyListScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  summary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  infoFrame: {
+    backgroundColor: '#E7F0FE',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  summaryText: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.gradientEnd },
-  searchWrapper: { padding: Spacing.md, paddingBottom: Spacing.sm },
-  list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xl },
-  card: {
+  totalLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  periodLine: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 2, marginBottom: Spacing.xs },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, marginTop: 2 },
+  toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
+  tableHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#FDF6DB',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  th: { fontSize: 10, fontWeight: Typography.fontWeights.semiBold, color: Colors.textSecondary },
+  thRight: { textAlign: 'right' },
+  list: { paddingBottom: Spacing.xl },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    ...Shadows.card,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
   },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: Colors.gradientEnd,
+  rowLeft: { flex: 1, paddingRight: Spacing.sm },
+  partyName: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  address: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  phone: { fontSize: Typography.fontSizes.xs, fontStyle: 'italic', color: Colors.textSecondary, marginTop: 1 },
+  rowRight: { alignItems: 'flex-end', gap: 4 },
+  amount: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  actionRow: { flexDirection: 'row', gap: 6 },
+  actionBtn: {
+    width: 28,
+    height: 24,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
   },
-  avatarText: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.bold, color: Colors.textWhite },
-  info: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: Spacing.sm },
-  name: { flex: 1, fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
-  meta: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary },
-  dot: { color: Colors.gray300, fontSize: 10 },
-  amountRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  amountLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary },
-  amount: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.bold, color: Colors.gradientEnd },
+  callBtn: { borderColor: Colors.danger, backgroundColor: Colors.dangerLight },
+  waBtn: { borderColor: '#25D366', backgroundColor: '#E8F9EF' },
 });

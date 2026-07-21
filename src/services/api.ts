@@ -2,10 +2,12 @@
  * API Service — all functions are stubbed with mock data.
  * Replace the implementations with real axios/fetch calls when backend is ready.
  */
+import { API_BASE_URL, API_HEADERS } from '../config';
 import { mockUser } from '../data/mockData';
 import { FORM_ID_TO_MODULE } from '../constants/options';
 import {
   apiFetch,
+  mapBillDetail,
   buildCompanyQuery,
   buildOsQuery,
   extractDataArray,
@@ -27,6 +29,7 @@ import {
   aggregateStockData,
 } from './apiHelpers';
 import type {
+  BillDetail,
   User,
   SubUser,
   ProfileCompany,
@@ -59,13 +62,9 @@ import type {
 // ─── Base Client (swap with axios instance when ready) ────────────────────────
 
 export const apiClient = {
-  baseURL: 'https://shininess-magnifier-fructose.ngrok-free.dev/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-  },
+  headers: API_HEADERS,
 };
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -533,6 +532,30 @@ const buildRegisterQuery = (filter?: ReportFilter): string => {
   return query ? `?${query}` : '';
 };
 
+// Fetch the raw bill record for a detail page. Tries the detail route first;
+// if it 404s or returns a row without invoice fields (backends differ on
+// whether the id is the pk or vn_invoice_id), falls back to the list and
+// matches the row by either identifier.
+const fetchBillRecord = async (
+  base: string,
+  id: string,
+): Promise<Record<string, unknown> | undefined> => {
+  const payload = await apiFetch<unknown>(`${base}/${id}/`).catch(() => undefined);
+  const rows = extractDataArray(payload);
+  let record: Record<string, unknown> | undefined =
+    rows[0] ?? (payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : undefined);
+
+  const looksValid =
+    record && (record.vn_invoice_no != null || record.vn_invoice_id != null || Array.isArray(record.items));
+  if (!looksValid) {
+    const list = await apiFetch<unknown>(`${base}/`).catch(() => undefined);
+    record = extractDataArray(list).find(
+      (r) => String(r.vn_invoice_id ?? '') === String(id) || String(r.id ?? '') === String(id),
+    );
+  }
+  return record;
+};
+
 export const salesRegisterApi = {
   getEntries: async (filter?: ReportFilter): Promise<RegisterEntry[]> => {
     const payload = await apiFetch<unknown>(`/sales-register/summary/${buildRegisterQuery(filter)}`);
@@ -556,6 +579,11 @@ export const salesRegisterApi = {
       : undefined;
     return { ...entry, items };
   },
+  // OG bill page: full model row + items[] + account.party (see CHANGES spec).
+  getBillDetail: async (id: string): Promise<BillDetail | undefined> => {
+    const record = await fetchBillRecord('/sales-register/summary', id);
+    return record ? mapBillDetail(record, 'sales') : undefined;
+  },
 };
 
 export const purchaseRegisterApi = {
@@ -567,6 +595,10 @@ export const purchaseRegisterApi = {
     const payload = await apiFetch<unknown>(`/purchase-register/summary/${id}/`);
     const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     return mapRegisterEntry(record);
+  },
+  getBillDetail: async (id: string): Promise<BillDetail | undefined> => {
+    const record = await fetchBillRecord('/purchase-register/summary', id);
+    return record ? mapBillDetail(record, 'purchase') : undefined;
   },
 };
 
@@ -580,19 +612,27 @@ export const gpRegisterApi = {
     const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     return mapGpRegisterEntry(record);
   },
+  getBillDetail: async (id: string): Promise<BillDetail | undefined> => {
+    const record = await fetchBillRecord('/gp-register/summary', id);
+    return record ? mapBillDetail(record, 'gp') : undefined;
+  },
 };
 
 // ─── Stock ────────────────────────────────────────────────────────────────────
 
 export const stockApi = {
   getAll: async (companyId?: string): Promise<StockItem[]> => {
-    const [yarn, beam, gray, sequance] = await Promise.all([
+    // allSettled, not all: the Non-Issue summary aggregates four independent stock
+    // sources. With Promise.all a single failing/empty source (e.g. sequance-stock)
+    // rejects the whole batch and the summary page renders blank. allSettled keeps
+    // every source that DID load so partial data still shows.
+    const results = await Promise.allSettled([
       stockApi.getByCategory('yarn', companyId, 'quality', 'yarn'),
       stockApi.getByCategory('beam', companyId, 'quality', 'beam'),
       stockApi.getByCategory('nonIssue', companyId, 'quality', 'gray'),
       stockApi.getByCategory('nonIssue', companyId, 'quality', 'sequance'),
     ]);
-    return [...yarn, ...beam, ...gray, ...sequance];
+    return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
   },
   getByCategory: async (
     category: 'yarn' | 'beam' | 'nonIssue',
@@ -718,18 +758,28 @@ export const itemsApi = {
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 
-const mapAccountParty = (row: Record<string, unknown>): AccountParty => ({
-  id: typeof row.vn_party_id === 'number' 
-    ? row.vn_party_id 
-    : typeof row.vn_account_id === 'number'
-      ? row.vn_account_id
-      : Number(row.id ?? 0) || 0,
-  name: typeof row.vv_party_name === 'string'
-    ? row.vv_party_name
-    : typeof row.vv_account_name === 'string'
-      ? row.vv_account_name
-      : String(row.name ?? ''),
-});
+const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+const mapAccountParty = (row: Record<string, unknown>): AccountParty => {
+  // Compose a readable address from address1 + area/city (whichever are present).
+  const addressParts = [str(row.vv_address1), str(row.vv_area) || str(row.vv_city)].filter(Boolean);
+  const gst = str(row.vv_gstin_no);
+  return {
+    id: typeof row.vn_party_id === 'number'
+      ? row.vn_party_id
+      : typeof row.vn_account_id === 'number'
+        ? row.vn_account_id
+        : Number(row.id ?? 0) || 0,
+    name: typeof row.vv_party_name === 'string'
+      ? row.vv_party_name
+      : typeof row.vv_account_name === 'string'
+        ? row.vv_account_name
+        : String(row.name ?? ''),
+    address: addressParts.join(', ') || undefined,
+    gstNo: gst || undefined,
+    phone: str(row.vv_mobile) || undefined,
+  };
+};
 
 export const accountsApi = {
   getAll: async (companyId?: string): Promise<AccountParty[]> => {

@@ -5,7 +5,6 @@ import type { Company } from '../types';
 interface CompanyState {
   companies: Company[];
   selectedCompany: Company | null;
-  lastSynced: string;
   isLoading: boolean;
   selectCompany: (company: Company) => void;
   fetchCompanies: () => Promise<void>;
@@ -14,7 +13,6 @@ interface CompanyState {
 export const useCompanyStore = create<CompanyState>((set, get) => ({
   companies: [],
   selectedCompany: null,
-  lastSynced: '',
   isLoading: false,
 
   selectCompany: (company: Company) => {
@@ -34,13 +32,6 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
         companies,
         selectedCompany: nextSelected,
         isLoading: false,
-        lastSynced: new Date().toLocaleString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
       });
     } catch {
       set({ isLoading: false });
