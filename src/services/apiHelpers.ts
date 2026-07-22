@@ -348,7 +348,7 @@ export async function fetchPartyBills(
     // Feed the bill rows into the mapper: the total row alone has no address /
     // phone, so the detail info block would render blank without this fallback.
     const party = totalRow
-      ? mapSalesOsParty({ ...totalRow, bills: rows })
+      ? mapSalesOsParty({ ...rows[0], ...totalRow, bills: rows })
       : rows[0]
         ? {
             id: partyId,
@@ -367,7 +367,7 @@ export async function fetchPartyBills(
   if (type === 'purchase') {
     const invoices = rows.map((row) => mapBillToPurchaseInvoice(row, partyId));
     const party = totalRow
-      ? mapPurchaseOsParty({ ...totalRow, bills: rows })
+      ? mapPurchaseOsParty({ ...rows[0], ...totalRow, bills: rows })
       : rows[0]
         ? {
             id: partyId,
@@ -384,7 +384,7 @@ export async function fetchPartyBills(
 
   const invoices = rows.map(mapBillToGpInvoice);
   const party = totalRow
-    ? mapGpOsParty({ ...totalRow, bills: rows })
+    ? mapGpOsParty({ ...rows[0], ...totalRow, bills: rows })
     : rows[0]
       ? {
           id: partyId,

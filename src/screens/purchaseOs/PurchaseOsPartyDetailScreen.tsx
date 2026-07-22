@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Share, Switch, Linking } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -29,6 +29,8 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [calcVisible, setCalcVisible] = useState(false);
+  const [showInterest, setShowInterest] = useState(false);
+  const [activeFilter, setActiveFilter] = useState(filter || { onlyDue: false });
 
   useEffect(() => {
     setLoading(true);
@@ -48,9 +50,9 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
         setInvoices(invoiceData);
       })
       .finally(() => setLoading(false));
-  }, [partyId, partyName, filter]);
+  }, [partyId, partyName, activeFilter]);
 
-  const visibleInvoices = filter.onlyDue ? invoices.filter((i) => i.daysLeft < 0) : invoices;
+  const visibleInvoices = activeFilter.onlyDue ? invoices.filter((i) => i.daysLeft < 0) : invoices;
 
   const toggleBill = (id: string) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -113,8 +115,7 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
   return (
     <View style={styles.container}>
       <GradientHeader
-        title={partyName}
-        subtitle={party.city}
+        title="Purchase O/s Party Detail"
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
@@ -127,7 +128,16 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
         {/* OG-style summary header: party, address, broker, dates, Total O/s. */}
         <View style={styles.ogSummary}>
           <Text style={styles.ogParty}>{party.name}</Text>
-          {party.city ? <Text style={styles.ogAddress}>{party.city}</Text> : null}
+          <View style={styles.addressRow}>
+            {party.city ? <Text style={styles.ogAddress}>{party.city}</Text> : <View style={{ flex: 1 }} />}
+            <TouchableOpacity
+              onPress={() => party.phone ? Linking.openURL(`whatsapp://send?phone=91${party.phone}`) : Alert.alert('No Phone', 'No phone number available')}
+              activeOpacity={0.8}
+              style={styles.waIcon}
+            >
+              <Icon name="whatsapp" size={24} color={Colors.success} />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.ogLine}>Broker : {brokerName || 'DIRECT'}</Text>
           {filter?.fromDate || filter?.toDate ? (
             <Text style={styles.ogLine}>
@@ -136,19 +146,26 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
           ) : null}
           <Text style={styles.ogTotal}>Total O/s : {formatCurrency(party.totalOs)}</Text>
           <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
+          
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Only Due</Text>
+              <Switch
+                value={activeFilter.onlyDue}
+                onValueChange={(val) => setActiveFilter({ ...activeFilter, onlyDue: val })}
+                style={styles.switch}
+              />
+            </View>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Show Interest</Text>
+              <Switch
+                value={showInterest}
+                onValueChange={setShowInterest}
+                style={styles.switch}
+              />
+            </View>
+          </View>
         </View>
-
-        {party.phone && (
-          <Card style={styles.card}>
-            <TouchableOpacity
-              style={styles.contactRow}
-              onPress={() => Alert.alert('Call', `Calling ${party.phone}`)}
-            >
-              <Icon name="phone" size={18} color={Colors.success} />
-              <Text style={styles.phone}>{party.phone}</Text>
-            </TouchableOpacity>
-          </Card>
-        )}
 
         {/* Pending Invoices — full-bleed table section (no card, edge-to-edge) */}
         <View style={styles.invoicesSection}>
@@ -190,22 +207,6 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
           ) : null}
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: Colors.success }]}
-            onPress={() => Alert.alert('Call', `Calling ${party.name}`)}
-          >
-            <Icon name="phone" size={20} color={Colors.textWhite} />
-            <Text style={styles.actionBtnText}>Call</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: Colors.purple100, borderWidth: 1.5, borderColor: Colors.gradientEnd }]}
-            onPress={handleShare}
-          >
-            <Icon name="share-variant" size={20} color={Colors.gradientEnd} />
-            <Text style={[styles.actionBtnText, { color: Colors.gradientEnd }]}>Share</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       <InterestCalculatorModal
@@ -247,10 +248,17 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   ogParty: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  ogAddress: { fontSize: Typography.fontSizes.sm, fontStyle: 'italic' as const, color: Colors.textSecondary, marginTop: 2 },
+  addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: 2 },
+  ogAddress: { flex: 1, fontSize: 10, fontStyle: 'italic', color: Colors.textSecondary },
+  waIcon: { padding: 4, backgroundColor: Colors.successLight, borderRadius: 20 },
   ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 4 },
-  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientEnd, marginTop: 6 },
+  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart, marginTop: 6 },
   ogSub: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
+  toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  switch: { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
   invoicesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   // Full-bleed table section: cancels the ScrollView's horizontal padding so the
   // grid uses the entire screen width.

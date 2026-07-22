@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert, Share } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert, Share, Linking } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -40,6 +40,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [calcVisible, setCalcVisible] = useState(false);
   const [onlyDue, setOnlyDue] = useState(filter.onlyDue ?? false);
+  const [showInterest, setShowInterest] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -138,8 +139,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
   return (
     <View style={styles.container}>
       <GradientHeader
-        title={partyName}
-        subtitle={party.address}
+        title="GP O/s Party Detail"
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
@@ -153,7 +153,16 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
             dates, Total O/s. */}
         <View style={styles.ogSummary}>
           <Text style={styles.ogParty}>{party.name}</Text>
-          {party.address ? <Text style={styles.ogAddress}>{party.address}</Text> : null}
+          <View style={styles.addressRow}>
+            {party.address ? <Text style={styles.ogAddress}>{party.address}</Text> : <View style={{ flex: 1 }} />}
+            <TouchableOpacity
+              onPress={() => party.phone ? Linking.openURL(`whatsapp://send?phone=91${party.phone}`) : Alert.alert('No Phone', 'No phone number available')}
+              activeOpacity={0.8}
+              style={styles.waIcon}
+            >
+              <Icon name="whatsapp" size={24} color={Colors.success} />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.ogLine}>Broker : {brokerName || 'DIRECT'}</Text>
           {filter?.fromDate || filter?.toDate ? (
             <Text style={styles.ogLine}>
@@ -162,29 +171,10 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
           ) : null}
           <Text style={styles.ogTotal}>Total O/s : {formatCurrency(party.totalOs)}</Text>
           <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
-        </View>
-
-        {/* Contact */}
-        {party.phone && (
-          <Card style={styles.card}>
-            <TouchableOpacity
-              style={styles.contactRow}
-              onPress={() => Alert.alert('Call', `Calling ${party.phone}`)}
-            >
-              <Icon name="phone" size={18} color={Colors.success} />
-              <Text style={styles.phone}>{party.phone}</Text>
-            </TouchableOpacity>
-          </Card>
-        )}
-
-        {/* Bills — full-bleed table section (no card, edge-to-edge) */}
-        <View style={styles.invoicesSection}>
-          <View style={[styles.invoicesHeader, styles.sectionPad]}>
-            <Text style={styles.cardTitle}>
-              {onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
-            </Text>
-            <View style={styles.onlyDueToggle}>
-              <Text style={styles.onlyDueLabel}>Only Due</Text>
+          
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Only Due</Text>
               <Switch
                 value={onlyDue}
                 onValueChange={setOnlyDue}
@@ -194,6 +184,28 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
                 style={styles.switch}
               />
             </View>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Show Interest</Text>
+              <Switch
+                value={showInterest}
+                onValueChange={setShowInterest}
+                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                thumbColor={Colors.surface}
+                ios_backgroundColor={Colors.gray300}
+                style={styles.switch}
+              />
+            </View>
+          </View>
+        </View>
+
+
+
+        {/* Bills — full-bleed table section (no card, edge-to-edge) */}
+        <View style={styles.invoicesSection}>
+          <View style={[styles.invoicesHeader, styles.sectionPad]}>
+            <Text style={styles.cardTitle}>
+              {onlyDue ? 'Due Invoices' : 'Pending Invoices'} ({visibleInvoices.length})
+            </Text>
           </View>
 
           {visibleInvoices.length > 0 ? (
@@ -230,22 +242,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
           ) : null}
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: Colors.success }]}
-            onPress={() => Alert.alert('Call', `Calling ${party.name}`)}
-          >
-            <Icon name="phone" size={20} color={Colors.textWhite} />
-            <Text style={styles.actionBtnText}>Call</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: Colors.purple100, borderWidth: 1.5, borderColor: Colors.gradientEnd }]}
-            onPress={handleShare}
-          >
-            <Icon name="share-variant" size={20} color={Colors.gradientEnd} />
-            <Text style={[styles.actionBtnText, { color: Colors.gradientEnd }]}>Share</Text>
-          </TouchableOpacity>
-        </View>
+
       </ScrollView>
 
       <InterestCalculatorModal
@@ -296,6 +293,11 @@ const styles = StyleSheet.create({
   onlyDueToggle: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   onlyDueLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textSecondary },
   switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
+  addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: 2 },
+  waIcon: { padding: 4, backgroundColor: Colors.successLight, borderRadius: 20 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
+  toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
   selectAll: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: Spacing.sm },
   selectAllText: { fontSize: Typography.fontSizes.xs, color: Colors.gradientEnd, fontWeight: Typography.fontWeights.semiBold },
   // Full-bleed table section: cancels the ScrollView's horizontal padding so the
@@ -359,10 +361,4 @@ const styles = StyleSheet.create({
   interestBtnText: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold, color: Colors.textWhite },
 
   noInvoices: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary, textAlign: 'center', padding: Spacing.md },
-  actions: { flexDirection: 'row', gap: Spacing.md },
-  actionBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: Spacing.md, borderRadius: BorderRadius.md, gap: Spacing.sm,
-  },
-  actionBtnText: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold, color: Colors.textWhite },
 });
