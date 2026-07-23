@@ -65,24 +65,7 @@ export const PurchaseOsFilterScreen: React.FC<Props> = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Card style={styles.card}>
-          <Text style={styles.label}>Report Type</Text>
-          <View style={styles.chipsRow}>
-            {reportTypes.map((rt) => (
-              <TouchableOpacity
-                key={rt.key}
-                style={[styles.chip, reportType === rt.key && styles.chipActive]}
-                onPress={() => setReportType(rt.key)}
-                activeOpacity={0.8}
-              >
-                <Icon name={rt.icon} size={14} color={reportType === rt.key ? Colors.textWhite : Colors.gradientEnd} />
-                <Text style={[styles.chipText, reportType === rt.key && styles.chipTextActive]}>
-                  {rt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Card>
+        
 
         <Card style={styles.card}>
           <Text style={styles.label}>Date Range</Text>

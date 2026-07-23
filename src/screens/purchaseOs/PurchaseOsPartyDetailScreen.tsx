@@ -9,7 +9,7 @@ import { Card } from '../../components/Card';
 import { Badge, getDaysBadgeVariant } from '../../components/Badge';
 import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
+import { InlineInterestCalculator, useInlineInterest } from '../../components/InlineInterestCalculator';
 import { purchaseOsApi } from '../../services/api';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { PurchaseOsStackParamList, PurchaseOsParty, PurchaseOsInvoice } from '../../types';
@@ -28,8 +28,8 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
   const [invoices, setInvoices] = useState<PurchaseOsInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [calcVisible, setCalcVisible] = useState(false);
-  const [showInterest, setShowInterest] = useState(false);
+    const [showInterest, setShowInterest] = useState(false);
+  const interestCalc = useInlineInterest();
   const [activeFilter, setActiveFilter] = useState(filter || { onlyDue: false });
 
   useEffect(() => {
@@ -62,9 +62,7 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
 
   const selectedInvoices = visibleInvoices.filter((i) => selectedIds.includes(i.id));
   const selectedTotal = selectedInvoices.reduce((sum, i) => sum + i.outstanding, 0);
-  const interestBills = selectedInvoices.map((inv) => toInterestBill(inv).bill);
-  const firstTermDays = selectedInvoices.length ? toInterestBill(selectedInvoices[0]).termDays : 30;
-
+    
   // OG summary: broker comes from the party's bills (vv_brocker_name).
   const brokerName = invoices.find((i) => i.brokerName)?.brokerName;
 
@@ -80,9 +78,8 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
         />
       ),
     },
-    { key: 'companyRef', label: 'Cmp', width: 38 },
-    { key: 'bookCode', label: 'Book', width: 42 },
-    { key: 'number', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.number}</GridText> },
+        { key: 'bookCode', label: 'Book', width: 35 },
+    { key: 'number', label: 'Bill No', flex: 0.8, render: (inv) => <GridText bold>{inv.number}</GridText> },
     { key: 'date', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
     { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays ?? 0)}</GridText> },
     { key: 'totalDueDays', label: 'Total Due', width: 42, render: (inv) => <GridText>{String(inv.totalDueDays ?? 0)}</GridText> },
@@ -95,15 +92,14 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
       ),
     },
     { key: 'outstanding', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+    ...(showInterest ? [{
+      key: 'interest',
+      label: 'Interest',
+      flex: 1.3,
+      render: (inv: any) => <GridText>{`₹ ${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
+    }] : [])
   ];
 
-  const openCalculator = () => {
-    if (selectedInvoices.length === 0) {
-      Alert.alert('Alert', 'Please select a bill for interest calculation.');
-      return;
-    }
-    setCalcVisible(true);
-  };
 
   const handleShare = async () => {
     if (!party) return;
@@ -114,8 +110,7 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
 
   return (
     <View style={styles.container}>
-      <GradientHeader
-        title="Purchase O/s Party Detail"
+      <GradientHeader title="Purchase O/s (Party Wise)"
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
@@ -184,6 +179,16 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
               </TouchableOpacity>
             ) : null}
           </View>
+          {showInterest && selectedInvoices.length > 0 && (
+            <View style={styles.sectionPad}>
+              <InlineInterestCalculator
+                {...interestCalc}
+                selectedBillAmount={selectedTotal}
+                totalInterest={selectedInvoices.reduce((sum, inv) => sum + interestCalc.calculateBillInterest((inv as any).outstanding ?? (inv as any).balance ?? (inv as any).netBalance ?? 0, inv.totalDueDays ?? 0), 0)}
+              />
+            </View>
+          )}
+
           <GridTable
             columns={billColumns}
             data={visibleInvoices}
@@ -193,28 +198,17 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
             emptyText="No pending invoices"
           />
 
-          {visibleInvoices.length > 0 ? (
-            <>
-              <View style={[styles.selectedRow, styles.sectionPad]}>
-                <Text style={styles.selectedLabel}>Selected Bill Total</Text>
-                <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
-              </View>
-              <TouchableOpacity style={[styles.interestBtn, styles.interestBtnPad]} onPress={openCalculator} activeOpacity={0.85}>
-                <Icon name="calculator-variant-outline" size={18} color={Colors.textWhite} />
-                <Text style={styles.interestBtnText}>Interest Calculation</Text>
-              </TouchableOpacity>
-            </>
+          {visibleInvoices.length > 0 && !showInterest ? (
+            <View style={[styles.selectedRow, styles.sectionPad]}>
+              <Text style={styles.selectedLabel}>Selected Bill Total</Text>
+              <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
+            </View>
           ) : null}
         </View>
 
       </ScrollView>
 
-      <InterestCalculatorModal
-        visible={calcVisible}
-        bills={interestBills}
-        defaultDueDays={firstTermDays}
-        onClose={() => setCalcVisible(false)}
-      />
+      
       <LoadingOverlay visible={loading} message="Loading invoices..." />
     </View>
   );

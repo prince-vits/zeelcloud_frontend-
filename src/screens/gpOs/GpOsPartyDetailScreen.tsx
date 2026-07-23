@@ -9,7 +9,7 @@ import { Card } from '../../components/Card';
 import { Badge, getDaysBadgeVariant } from '../../components/Badge';
 import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
+import { InlineInterestCalculator, useInlineInterest } from '../../components/InlineInterestCalculator';
 import { gpOsApi } from '../../services/api';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { GpOsStackParamList, GpOsParty, GpOsInvoice } from '../../types';
@@ -38,9 +38,9 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
   const [invoices, setInvoices] = useState<GpOsInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [calcVisible, setCalcVisible] = useState(false);
-  const [onlyDue, setOnlyDue] = useState(filter.onlyDue ?? false);
+    const [onlyDue, setOnlyDue] = useState(filter.onlyDue ?? false);
   const [showInterest, setShowInterest] = useState(false);
+  const interestCalc = useInlineInterest();
 
   useEffect(() => {
     setLoading(true);
@@ -74,18 +74,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
   const selectedInvoices = visibleInvoices.filter((i) => selectedIds.includes(i.id));
   const selectedTotal = selectedInvoices.reduce((sum, i) => sum + i.balance, 0);
 
-  const interestBills = selectedInvoices.map((inv) => toInterestBill(gpInvoiceToInterestInput(inv)).bill);
-  const firstTermDays = selectedInvoices.length
-    ? toInterestBill(gpInvoiceToInterestInput(selectedInvoices[0])).termDays
-    : 30;
-
-  const openCalculator = () => {
-    if (selectedInvoices.length === 0) {
-      Alert.alert('Alert', 'Please, Select Bill For Interest Calculation');
-      return;
-    }
-    setCalcVisible(true);
-  };
+    
 
   // OG summary: broker comes from the party's bills (Vv_brocker_name).
   const brokerName = invoices.find((i) => i.brokerName)?.brokerName;
@@ -102,8 +91,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
         />
       ),
     },
-    { key: 'companyRef', label: 'Cmp', width: 38 },
-    { key: 'bookCode', label: 'Book', width: 42 },
+        { key: 'bookCode', label: 'Book', width: 35 },
     { key: 'billNo', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.billNo}</GridText> },
     { key: 'billDate', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.billDate)}</GridText> },
     { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays)}</GridText> },
@@ -117,6 +105,12 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
       ),
     },
     { key: 'balance', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+    ...(showInterest ? [{
+      key: 'interest',
+      label: 'Interest',
+      flex: 1.3,
+      render: (inv: any) => <GridText>{`₹ ${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
+    }] : [])
   ];
 
   const handleShare = async () => {
@@ -138,8 +132,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
 
   return (
     <View style={styles.container}>
-      <GradientHeader
-        title="GP O/s Party Detail"
+      <GradientHeader title="GP O/s (Party Wise)"
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
@@ -219,6 +212,16 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
             </TouchableOpacity>
           ) : null}
 
+          {showInterest && selectedInvoices.length > 0 && (
+            <View style={styles.sectionPad}>
+              <InlineInterestCalculator
+                {...interestCalc}
+                selectedBillAmount={selectedTotal}
+                totalInterest={selectedInvoices.reduce((sum, inv) => sum + interestCalc.calculateBillInterest((inv as any).outstanding ?? (inv as any).balance ?? (inv as any).netBalance ?? 0, inv.totalDueDays ?? 0), 0)}
+              />
+            </View>
+          )}
+
           <GridTable
             columns={billColumns}
             data={visibleInvoices}
@@ -228,29 +231,18 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
             emptyText="No pending invoices"
           />
 
-          {visibleInvoices.length > 0 ? (
-            <>
-              <View style={[styles.selectedRow, styles.sectionPad]}>
-                <Text style={styles.selectedLabel}>Selected Bill Total</Text>
-                <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
-              </View>
-              <TouchableOpacity style={[styles.interestBtn, styles.interestBtnPad]} onPress={openCalculator} activeOpacity={0.85}>
-                <Icon name="calculator-variant-outline" size={18} color={Colors.textWhite} />
-                <Text style={styles.interestBtnText}>Interest Calculation</Text>
-              </TouchableOpacity>
-            </>
+          {visibleInvoices.length > 0 && !showInterest ? (
+            <View style={[styles.selectedRow, styles.sectionPad]}>
+              <Text style={styles.selectedLabel}>Selected Bill Total</Text>
+              <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
+            </View>
           ) : null}
         </View>
 
 
       </ScrollView>
 
-      <InterestCalculatorModal
-        visible={calcVisible}
-        bills={interestBills}
-        defaultDueDays={firstTermDays}
-        onClose={() => setCalcVisible(false)}
-      />
+      
       <LoadingOverlay visible={loading} message="Loading invoices..." />
     </View>
   );

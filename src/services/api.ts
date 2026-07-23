@@ -794,7 +794,7 @@ export const accountsApi = {
 const mapSalesOrder = (row: Record<string, unknown>): SalesOrder => {
   const rawItems = Array.isArray(row.items) ? row.items : [];
   return {
-    id: typeof row.id === 'number' ? row.id : 0,
+    id: typeof row.id === 'string' ? row.id : typeof row.id === 'number' ? row.id : '',
     companyId: typeof row.company_id === 'number' ? row.company_id : 0,
     orderNo: typeof row.order_no === 'string' ? row.order_no : '',
     date: typeof row.date === 'string' ? row.date : '',
@@ -832,14 +832,27 @@ export const salesOrdersApi = {
   getById: async (id: string): Promise<SalesOrder | undefined> => {
     const payload = await apiFetch<Record<string, unknown>>(`/sales-orders/${id}/`);
     if (!payload || typeof payload !== 'object') return undefined;
-    return mapSalesOrder(payload as Record<string, unknown>);
+    const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
+    return mapSalesOrder(data as Record<string, unknown>);
   },
   create: async (data: CreateSalesOrderPayload): Promise<SalesOrder> => {
     const payload = await apiFetch<Record<string, unknown>>('/sales-orders/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return mapSalesOrder(payload);
+    const responseData = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    return mapSalesOrder(responseData as Record<string, unknown>);
+  },
+  update: async (id: string, data: CreateSalesOrderPayload): Promise<SalesOrder> => {
+    const payload = await apiFetch<Record<string, unknown>>(`/sales-orders/${id}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    const responseData = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    return mapSalesOrder(responseData as Record<string, unknown>);
+  },
+  delete: async (id: string): Promise<void> => {
+    await apiFetch(`/sales-orders/${id}/`, { method: 'DELETE' });
   },
   getLastColor: async (companyId: string, itemId: number): Promise<string | null> => {
     const params = new URLSearchParams({ company: companyId, item_id: String(itemId) });

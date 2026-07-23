@@ -21,6 +21,7 @@ interface GridTableProps<T> {
   onRowPress?: (item: T) => void;
   rowStyle?: (item: T) => ViewStyle | undefined;
   emptyText?: string;
+  hideHeader?: boolean;
 }
 
 // OG-style data grid, ported from the .NET MAUI app's report tables
@@ -34,6 +35,7 @@ export function GridTable<T>({
   onRowPress,
   rowStyle,
   emptyText = 'No records',
+  hideHeader = false,
 }: GridTableProps<T>) {
   const cellStyle = (col: GridColumn<T>): ViewStyle => ({
     ...(col.width != null ? { width: col.width } : { flex: col.flex ?? 1 }),
@@ -45,15 +47,7 @@ export function GridTable<T>({
   return (
     <View style={styles.table}>
       {/* Header strip (OG: Yellow200Accent bar with 10px labels) */}
-      <View style={[styles.row, styles.headerRow]}>
-        {columns.map((col) => (
-          <View key={col.key} style={cellStyle(col)}>
-            <Text style={styles.th} numberOfLines={2}>
-              {col.label}
-            </Text>
-          </View>
-        ))}
-      </View>
+      {!hideHeader && <GridTableHeader columns={columns} />}
 
       {data.length === 0 ? (
         <Text style={styles.empty}>{emptyText}</Text>
@@ -81,6 +75,27 @@ export function GridTable<T>({
           );
         })
       )}
+    </View>
+  );
+}
+
+export function GridTableHeader<T>({ columns }: { columns: GridColumn<T>[] }) {
+  const cellStyle = (col: GridColumn<T>): ViewStyle => ({
+    ...(col.width != null ? { width: col.width } : { flex: col.flex ?? 1 }),
+    alignItems: col.align === 'right' ? 'flex-end' : col.align === 'left' ? 'flex-start' : 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  });
+
+  return (
+    <View style={[styles.row, styles.headerRow]}>
+      {columns.map((col) => (
+        <View key={col.key} style={cellStyle(col)}>
+          <Text style={styles.th} numberOfLines={2}>
+            {col.label}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }

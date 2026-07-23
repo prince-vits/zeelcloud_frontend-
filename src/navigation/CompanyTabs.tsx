@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { ReportsScreen } from '../screens/company/ReportsScreen';
 import { MoreScreen } from '../screens/company/MoreScreen';
-import { CreateSalesOrderScreen } from '../screens/salesOrder/CreateSalesOrderScreen';
+import { SalesOrderStack } from './stacks/SalesOrderStack';
 import { StockStack } from './stacks/StockStack';
 import { useBaseTabScreenOptions, tabIcon } from './tabConfig';
 import type { CompanyTabParamList } from '../types';
@@ -30,9 +30,9 @@ export const CompanyTabs: React.FC = () => {
       options={{ tabBarLabel: 'Stocks', tabBarIcon: tabIcon('package-variant') }}
     />
     <Tab.Screen
-      name="CreateOrder"
-      component={CreateSalesOrderScreen}
-      options={{ tabBarLabel: 'Create Order', tabBarIcon: tabIcon('plus-box-outline') }}
+      name="SalesOrders"
+      component={SalesOrderStack}
+      options={{ tabBarLabel: 'Sales Orders', tabBarIcon: tabIcon('file-document-outline') }}
     />
     <Tab.Screen
       name="More"

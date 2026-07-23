@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Switch, Linking, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -8,6 +8,7 @@ import { CompanyStrip } from '../../components/CompanyStrip';
 import { Card } from '../../components/Card';
 import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { InlineInterestCalculator, useInlineInterest } from '../../components/InlineInterestCalculator';
 import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
 import { salesOsApi } from '../../services/api';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
@@ -25,9 +26,11 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
   const [broker, setBroker] = useState<SalesOsBroker | undefined>(undefined);
   const [parties, setParties] = useState<SalesOsParty[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onlyDue, setOnlyDue] = useState(false);
+  const [showInterest, setShowInterest] = useState(false);
+  const interestCalc = useInlineInterest();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [calcVisible, setCalcVisible] = useState(false);
-
+  
   useEffect(() => {
     Promise.all([
       salesOsApi.getBrokerById(brokerId, filter),
@@ -51,13 +54,6 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
   const selectedInvoices = visibleInvoices.filter((i) => selectedIds.includes(i.id));
   const selectedTotal = selectedInvoices.reduce((sum, i) => sum + i.outstanding, 0);
 
-  const openCalculator = () => {
-    if (selectedInvoices.length === 0) {
-      Alert.alert('Alert', 'Please select a bill for interest calculation.');
-      return;
-    }
-    setCalcVisible(true);
-  };
 
   // OG bill grid — same columns as the party detail page.
   const billColumns: GridColumn<SalesOsInvoice>[] = [
@@ -72,8 +68,8 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
       ),
     },
     { key: 'companyRef', label: 'Cmp', width: 38 },
-    { key: 'bookCode', label: 'Book', width: 42 },
-    { key: 'number', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.number}</GridText> },
+    { key: 'bookCode', label: 'Book', width: 35 },
+    { key: 'number', label: 'Bill No', flex: 0.8, render: (inv) => <GridText bold>{inv.number}</GridText> },
     { key: 'date', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
     { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays ?? 0)}</GridText> },
     {
@@ -85,6 +81,12 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
       ),
     },
     { key: 'outstanding', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+    ...(showInterest ? [{
+      key: 'interest',
+      label: 'Interest',
+      flex: 1.3,
+      render: (inv: any) => <GridText>{`₹ ${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
+    }] : [])
   ];
 
   const interestBills = selectedInvoices.map((inv) => toInterestBill(inv).bill);
@@ -95,7 +97,7 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
 
   return (
     <View style={styles.container}>
-      <GradientHeader title="Sales O/s Broker Detail" subtitle={brokerName} onBack={() => navigation.goBack()} />
+      <GradientHeader title="Sales O/s (Broker Wise)" subtitle={brokerName} onBack={() => navigation.goBack()} />
       <CompanyStrip />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
@@ -109,7 +111,7 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
             {broker.phone && (
               <TouchableOpacity
                 style={styles.callBtn}
-                onPress={() => Alert.alert('Call', `Calling ${broker.phone}`)}
+                onPress={() => Linking.openURL(`whatsapp://send?phone=91${broker.phone}`)}
               >
                 <Icon name="whatsapp" size={24} color={Colors.success} />
               </TouchableOpacity>
@@ -122,6 +124,31 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
           )}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total O/s : <Text style={styles.totalAmount}>{formatCurrency(broker.totalOs)}</Text></Text>
+          </View>
+
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Only Due</Text>
+              <Switch
+                value={onlyDue}
+                onValueChange={setOnlyDue}
+                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                thumbColor={Colors.surface}
+                ios_backgroundColor={Colors.gray300}
+                style={styles.switch}
+              />
+            </View>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Show Interest</Text>
+              <Switch
+                value={showInterest}
+                onValueChange={setShowInterest}
+                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                thumbColor={Colors.surface}
+                ios_backgroundColor={Colors.gray300}
+                style={styles.switch}
+              />
+            </View>
           </View>
         </Card>
 
@@ -141,7 +168,17 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
               </View>
 
               <View style={styles.tableBleed}>
-                <GridTable
+                {showInterest && selectedInvoices.length > 0 && (
+            <View style={styles.sectionPad}>
+              <InlineInterestCalculator
+                {...interestCalc}
+                selectedBillAmount={selectedTotal}
+                totalInterest={selectedInvoices.reduce((sum, inv) => sum + interestCalc.calculateBillInterest((inv as any).outstanding ?? (inv as any).balance ?? (inv as any).netBalance ?? 0, inv.totalDueDays ?? 0), 0)}
+              />
+            </View>
+          )}
+
+          <GridTable
                   columns={billColumns}
                   data={partyBills}
                   keyExtractor={(inv, idx) => `${inv.id}-${idx}`}
@@ -158,31 +195,23 @@ export const SalesOsBrokerDetailScreen: React.FC<Props> = ({ navigation, route }
         })}
 
         {/* Selected total + Interest Calculation */}
-        {selectedInvoices.length > 0 && (
+        {selectedInvoices.length > 0 && !showInterest && (
           <Card style={styles.actionCard}>
             <View style={styles.selectedRow}>
               <Text style={styles.selectedLabel}>Selected Bill Total</Text>
               <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
             </View>
-            <TouchableOpacity style={styles.interestBtn} onPress={openCalculator} activeOpacity={0.85}>
-              <Icon name="calculator-variant-outline" size={18} color={Colors.textWhite} />
-              <Text style={styles.interestBtnText}>Interest Calculation</Text>
-            </TouchableOpacity>
           </Card>
         )}
       </ScrollView>
 
-      <InterestCalculatorModal
-        visible={calcVisible}
-        bills={interestBills}
-        defaultDueDays={firstTermDays}
-        onClose={() => setCalcVisible(false)}
-      />
+      
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  sectionPad: { paddingHorizontal: Spacing.md },
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.md, paddingBottom: Spacing.xl },
   summaryCard: { marginBottom: Spacing.md, padding: Spacing.md },
@@ -194,6 +223,11 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.md },
   totalLabel: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },
   totalAmount: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
+  toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
+
   
   partyContainer: { marginBottom: Spacing.lg },
   tableBleed: { marginHorizontal: -Spacing.md, backgroundColor: Colors.surface },

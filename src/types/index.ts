@@ -113,7 +113,7 @@ export interface SalesOrderApiItem {
 }
 
 export interface SalesOrder {
-  id: number;
+  id: string | number;
   companyId: number;
   orderNo: string;
   date: string;
@@ -471,8 +471,14 @@ export type CompanyTabParamList = {
   Dashboard: undefined;
   Reports: undefined;
   Stocks: undefined;
-  CreateOrder: undefined;
+  SalesOrders: undefined;
   More: undefined;
+};
+
+export type SalesOrderStackParamList = {
+  SalesOrderHub: undefined;
+  SalesOrderList: undefined;
+  CreateSalesOrder: { orderId?: string } | undefined;
 };
 
 export type SalesOsStackParamList = {

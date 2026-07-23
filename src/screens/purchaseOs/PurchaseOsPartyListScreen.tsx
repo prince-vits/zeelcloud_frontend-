@@ -73,14 +73,7 @@ export const PurchaseOsPartyListScreen: React.FC<Props> = ({ navigation, route }
       </View>
       <View style={styles.rowRight}>
         <Text style={styles.amount}>₹ {money(item.totalOs)}</Text>
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.actionBtn, styles.callBtn]} onPress={() => call(item.phone)} activeOpacity={0.7}>
-            <Icon name="phone" size={14} color={Colors.danger} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.waBtn]} onPress={() => whatsapp(item.phone)} activeOpacity={0.7}>
-            <Icon name="whatsapp" size={14} color="#25D366" />
-          </TouchableOpacity>
-        </View>
+        
       </View>
     </TouchableOpacity>
   );

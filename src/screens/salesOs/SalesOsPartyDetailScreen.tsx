@@ -1,3 +1,4 @@
+import { Switch } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -7,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   Share,
+  Linking,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -17,7 +19,7 @@ import { Card } from '../../components/Card';
 import { Badge, getDaysBadgeVariant } from '../../components/Badge';
 import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
-import { InterestCalculatorModal, toInterestBill } from '../../components/InterestCalculatorModal';
+import { InlineInterestCalculator, useInlineInterest } from '../../components/InlineInterestCalculator';
 import { salesOsApi } from '../../services/api';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { SalesOsStackParamList, SalesOsParty, SalesOsInvoice } from '../../types';
@@ -35,9 +37,11 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
   const [party, setParty] = useState<SalesOsParty | undefined>(undefined);
   const [invoices, setInvoices] = useState<SalesOsInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onlyDue, setOnlyDue] = useState(false);
+  const [showInterest, setShowInterest] = useState(false);
+  const interestCalc = useInlineInterest();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [calcVisible, setCalcVisible] = useState(false);
-
+  
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -71,17 +75,8 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
   const selectedInvoices = visibleInvoices.filter((i) => selectedIds.includes(i.id));
   const selectedTotal = selectedInvoices.reduce((sum, i) => sum + i.outstanding, 0);
 
-  const openCalculator = () => {
-    if (selectedInvoices.length === 0) {
-      Alert.alert('Alert', 'Please select a bill for interest calculation.');
-      return;
-    }
-    setCalcVisible(true);
-  };
 
-  const interestBills = selectedInvoices.map((inv) => toInterestBill(inv).bill);
-  const firstTermDays = selectedInvoices.length ? toInterestBill(selectedInvoices[0]).termDays : 30;
-
+    
   // OG summary: broker comes from the party's bills (vv_brocker_name).
   const brokerName = invoices.find((i) => i.brokerName)?.brokerName;
 
@@ -99,9 +94,8 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
         />
       ),
     },
-    { key: 'companyRef', label: 'Cmp', width: 38 },
-    { key: 'bookCode', label: 'Book', width: 42 },
-    { key: 'number', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.number}</GridText> },
+        { key: 'bookCode', label: 'Book', width: 35 },
+    { key: 'number', label: 'Bill No', flex: 0.8, render: (inv) => <GridText bold>{inv.number}</GridText> },
     { key: 'date', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
     { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays ?? 0)}</GridText> },
     { key: 'totalDueDays', label: 'Total Due', width: 42, render: (inv) => <GridText>{String(inv.totalDueDays ?? 0)}</GridText> },
@@ -114,6 +108,12 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
       ),
     },
     { key: 'outstanding', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+    ...(showInterest ? [{
+      key: 'interest',
+      label: 'Interest',
+      flex: 1.3,
+      render: (inv: any) => <GridText>{`₹ ${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
+    }] : [])
   ];
 
   const handleShare = async () => {
@@ -127,8 +127,7 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
 
   return (
     <View style={styles.container}>
-      <GradientHeader
-        title={partyName}
+      <GradientHeader title="Sales O/s (Party Wise)"
         subtitle={party.city}
         onBack={() => navigation.goBack()}
         rightElement={
@@ -148,7 +147,18 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
             empty tiles. */}
         <View style={styles.ogSummary}>
           <Text style={styles.ogParty}>{party.name}</Text>
-          {party.city ? <Text style={styles.ogAddress}>{party.city}</Text> : null}
+          <View style={styles.addressRow}>
+            {party.city ? <Text style={styles.ogAddress}>{party.city}</Text> : <View style={{ flex: 1 }} />}
+            {party.phone && (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`whatsapp://send?phone=91${party.phone}`)}
+                activeOpacity={0.8}
+                style={styles.waIcon}
+              >
+                <Icon name="whatsapp" size={24} color={Colors.success} />
+              </TouchableOpacity>
+            )}
+          </View>
           <Text style={styles.ogLine}>Broker : {brokerName || 'DIRECT'}</Text>
           {filter?.fromDate || filter?.toDate ? (
             <Text style={styles.ogLine}>
@@ -157,25 +167,34 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
           ) : null}
           <Text style={styles.ogTotal}>Total O/s : {formatCurrency(party.totalOs)}</Text>
           <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
+
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Only Due</Text>
+              <Switch
+                value={onlyDue}
+                onValueChange={setOnlyDue}
+                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                thumbColor={Colors.surface}
+                ios_backgroundColor={Colors.gray300}
+                style={styles.switch}
+              />
+            </View>
+            <View style={styles.toggleItem}>
+              <Text style={styles.toggleLabel}>Show Interest</Text>
+              <Switch
+                value={showInterest}
+                onValueChange={setShowInterest}
+                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                thumbColor={Colors.surface}
+                ios_backgroundColor={Colors.gray300}
+                style={styles.switch}
+              />
+            </View>
+          </View>
         </View>
 
-        {/* Contact */}
-        {party.phone && (
-          <Card style={styles.contactCard}>
-            <Text style={styles.cardTitle}>Contact</Text>
-            <TouchableOpacity
-              style={styles.contactRow}
-              onPress={() => Alert.alert('Call', `Calling ${party.phone}`)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.contactIcon}>
-                <Icon name="phone" size={18} color={Colors.success} />
-              </View>
-              <Text style={styles.contactValue}>{party.phone}</Text>
-              <Icon name="chevron-right" size={16} color={Colors.gray400} />
-            </TouchableOpacity>
-          </Card>
-        )}
+
 
         {/* Pending Invoices — full-bleed table section (no card, edge-to-edge) */}
         <View style={styles.invoicesSection}>
@@ -194,6 +213,16 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
               </TouchableOpacity>
             ) : null}
           </View>
+          {showInterest && selectedInvoices.length > 0 && (
+            <View style={styles.sectionPad}>
+              <InlineInterestCalculator
+                {...interestCalc}
+                selectedBillAmount={selectedTotal}
+                totalInterest={selectedInvoices.reduce((sum, inv) => sum + interestCalc.calculateBillInterest((inv as any).outstanding ?? (inv as any).balance ?? (inv as any).netBalance ?? 0, inv.totalDueDays ?? 0), 0)}
+              />
+            </View>
+          )}
+
           <GridTable
             columns={billColumns}
             data={visibleInvoices}
@@ -208,17 +237,14 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
             <Text style={styles.selectedLabel}>Selected Bill Total</Text>
             <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
           </View>
-          <TouchableOpacity style={[styles.interestBtn, styles.interestBtnPad]} onPress={openCalculator} activeOpacity={0.85}>
-            <Icon name="calculator-variant-outline" size={18} color={Colors.textWhite} />
-            <Text style={styles.interestBtnText}>Interest Calculation</Text>
-          </TouchableOpacity>
+          
         </View>
 
         {/* Action Buttons */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionBtn, styles.callBtn]}
-            onPress={() => Alert.alert('Call', `Calling ${party.name}`)}
+            onPress={() => Linking.openURL(`whatsapp://send?phone=91${party.name}`)}
             activeOpacity={0.85}
           >
             <Icon name="phone" size={20} color={Colors.textWhite} />
@@ -235,12 +261,7 @@ export const SalesOsPartyDetailScreen: React.FC<Props> = ({ navigation, route })
         </View>
       </ScrollView>
 
-      <InterestCalculatorModal
-        visible={calcVisible}
-        bills={interestBills}
-        defaultDueDays={firstTermDays}
-        onClose={() => setCalcVisible(false)}
-      />
+      
       <LoadingOverlay visible={loading} message="Loading invoices..." />
     </View>
   );
@@ -295,26 +316,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.xs,
     color: Colors.textSecondary,
   },
-  contactCard: { marginBottom: Spacing.md, padding: Spacing.md },
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  contactIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: Colors.successLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  contactValue: {
-    flex: 1,
-    fontSize: Typography.fontSizes.base,
-    color: Colors.textPrimary,
-    fontWeight: Typography.fontWeights.medium,
-  },
   // OG-style summary header block (light blue, like the .NET Blue400Accent frame).
   ogSummary: {
     backgroundColor: '#E7F0FE',
@@ -325,13 +326,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   ogParty: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  ogAddress: { fontSize: Typography.fontSizes.sm, fontStyle: 'italic', color: Colors.textSecondary, marginTop: 2 },
+  ogAddress: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  addressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  waIcon: { padding: 4 },
   ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 4 },
   ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart, marginTop: 6 },
   ogSub: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
   // Full-bleed table section: cancels the ScrollView's horizontal padding so the
   // grid uses the entire screen width (client: "data feels congested").
-  invoicesSection: {
+    toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
+  toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
+invoicesSection: {
     backgroundColor: Colors.surface,
     marginHorizontal: -Spacing.md,
     paddingTop: Spacing.sm,

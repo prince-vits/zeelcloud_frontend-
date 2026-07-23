@@ -19,11 +19,6 @@ const CompanyStripBase: React.FC = () => {
       <Text style={styles.company} numberOfLines={1}>
         {companyName}
       </Text>
-      {companyAddress ? (
-        <Text style={styles.address} numberOfLines={2}>
-          {companyAddress}
-        </Text>
-      ) : null}
       <Text style={styles.synced} numberOfLines={1}>
         Last Synced: {lastSynced || '—'}
       </Text>
