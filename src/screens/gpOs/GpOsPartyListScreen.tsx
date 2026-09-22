@@ -138,7 +138,7 @@ export const GpOsPartyListScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   infoFrame: {
-    backgroundColor: '#E7F0FE',
+    backgroundColor: Colors.infoLight,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,

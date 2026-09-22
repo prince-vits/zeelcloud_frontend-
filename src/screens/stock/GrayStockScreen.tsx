@@ -20,5 +20,15 @@ export const GrayStockScreen: React.FC<Props> = ({ navigation, route }) => (
     searchPlaceholder="Search gray stock..."
     emptyIcon="package-variant"
     onBack={() => navigation.goBack()}
+    onRowPress={(item, commonCompany) =>
+      navigation.navigate('StockItemDetail', {
+        itemName: item.name,
+        lotNo: item.lotNo !== '-' ? item.lotNo : undefined,
+        category: 'nonIssue',
+        stockSource: 'gray',
+        reportType: route.params.reportType,
+        commonCompany,
+      })
+    }
   />
 );

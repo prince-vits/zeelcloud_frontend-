@@ -37,12 +37,12 @@ export function toDDMMYYYY(value?: string | null): string {
   return raw;
 }
 
-// Compact date for table grids: dd-mm-yy (e.g. "18-12-25") — keeps the Date
+// Compact date for table grids: dd/mm/yy (e.g. "18/12/25") — keeps the Date
 // column as narrow as possible so the other columns get more room.
 export function toDDMMYY(value?: string | null): string {
   const full = toDDMMYYYY(value); // normalise any input shape first
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(full);
-  return m ? `${m[1]}-${m[2]}-${m[3].slice(2)}` : full;
+  return m ? `${m[1]}/${m[2]}/${m[3].slice(2)}` : full;
 }
 
 // Default report start date, ported from the OG .NET app's filter pages

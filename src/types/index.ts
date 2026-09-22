@@ -16,6 +16,11 @@ export interface User {
   isSubuser?: boolean;
   parentUserId?: number | null;
   allowedForms?: AllowedForm[];
+  /** When false, Sales Orders tab / create APIs are blocked for this user. */
+  isSalesOrderCreationAllowed?: boolean;
+  profile?: {
+    companyName?: string;
+  };
 }
 
 export interface ProfileCompany {
@@ -56,6 +61,7 @@ export interface SubUser {
   phone: string;
   companyName: string;
   isActive: boolean;
+  isSalesOrderCreationAllowed: boolean;
   allowedModules: string[]; // module keys from PERMISSION_MODULES
   allowedFormIds?: number[]; // form IDs for API updates
 }
@@ -100,28 +106,31 @@ export interface AccountParty {
 
 // Sales Order — from GET /api/v1/sales-orders/
 export interface SalesOrderApiItem {
-  id: string;
-  vn_item_id: number;
-  vv_item_name: string;
-  vv_color: string;
-  vn_nos: number;
-  vn_cut: number;
-  vn_qnty: number;
-  vn_rate: number;
-  vn_amount: number;
-  vn_line_no: number;
+  id: number;
+  item_id: number;
+  item_name: string;
+  color: string;
+  nos: number;
+  cut: number;
+  qnty: number;
+  rate: number;
+  amount: number;
+  line_no: number;
 }
 
 export interface SalesOrder {
-  id: string | number;
+  id: number;
   companyId: number;
   orderNo: string;
   date: string;
   partyId: number;
   partyName: string;
+  discount_type?: 'amount' | 'percentage';
+  discount_value?: number;
   discount: number;
   totalAmount: number;
   remark: string;
+  is_synced?: boolean;
   items: SalesOrderApiItem[];
 }
 
@@ -131,6 +140,8 @@ export interface CreateSalesOrderPayload {
   order_no: string;
   date: string;           // YYYY-MM-DD
   party_id: number;
+  discount_type?: 'amount' | 'percentage';
+  discount_value?: number;
   discount?: number;
   remark?: string;
   items: {
@@ -295,6 +306,8 @@ export interface GpOsPartyTotal {
 // Items differ per module: sales → Taka|Pallu|Meter|Weight; purchase → Nos|Qty|Cut; gp → Qty.
 export interface BillDetailItem {
   name: string;    // VV_Item_Name
+  design?: string; // Proposed mapping for Design
+  hsnCode?: string; // VN_HSN_Code
   taka?: number;   // VN_Taka_No (sales)
   pallu?: number;  // VN_Cheese  (sales — OG "Pallu" column binds VN_Cheese)
   meter?: number;  // VN_Meter   (sales)
@@ -303,6 +316,12 @@ export interface BillDetailItem {
   qty?: number;    // VN_Qty     (purchase / gp)
   cut?: number;    // VN_Cut     (purchase)
   amount: number;  // VN_Amount
+  sgstRate?: number;
+  cgstRate?: number;
+  igstRate?: number;
+  sgstAmount?: number;
+  cgstAmount?: number;
+  igstAmount?: number;
 }
 
 export interface BillDetail {
@@ -311,6 +330,19 @@ export interface BillDetail {
   date: string;         // vd_invoice_date (ISO)
   partyName: string;    // party_name
   partyAddress: string; // account.party address1..3 + city + pin
+  deliveryPartyName?: string;
+  vehicalNo?: string;
+  ewayBillNo?: string;
+  irn?: string;
+  ackNo?: string;
+  brokerName?: string;
+  gstNo?: string;
+  mobileNo?: string;
+  field1?: string;
+  field2?: string;
+  field3?: string;
+  field4?: string;
+  field5?: string;
   items: BillDetailItem[];
   // OG totals block (label → field):
   grandTotal: number;   // Grand Total → vn_grant_total
@@ -355,12 +387,10 @@ export interface GpRegisterEntry {
   id: string;
   date: string;
   partyName: string;
-  grayQty: number;
-  beamQty: number;
-  processType: string;
   amount: number;
-  lotNo?: string;
-  quality?: string;
+  entryNo: string;
+  billNo: string;
+  description?: string;
 }
 
 // Stock
@@ -383,10 +413,32 @@ export interface StockItem {
   crtn?: number;
   netWeight?: number;
   cheese?: number;
+  grade?: string;
   // Gray grid columns
   taka?: number;
   avgWt?: number;
   pallu?: number;
+}
+
+export interface StockDetailItem {
+  id: string;
+  itemName: string;
+  crtnNo: string;
+  netWeight: number;
+  cheese: number;
+  twist: string;
+  grade: string;
+  lotNo: string;
+  partyName: string;
+  date: string;
+  // Gray / Beam fields
+  meter?: number;
+  weight?: number;
+  pallu?: number;
+  mcNo?: string;
+  beamNo?: string;
+  pipeType?: string;
+  mark?: string;
 }
 
 // OG report variants (NonIssueReportSelection): Quality Wise for all, plus a
@@ -425,11 +477,99 @@ export interface ReportFilter {
   companyId?: string;      // OG: company={VN_company_id} when Common Company is OFF
 }
 
+// Machine Wise Beam Stock
+export type MachineWiseReportType =
+  | 'machine'
+  | 'party'
+  | 'job_party'
+  | 'beam'
+  | 'g_quality'
+  | 'job_party_g_quality'
+  | 'ends';
+
+export type MachineWiseStockType = 'all' | 'loading' | 'bhidan' | 'godown';
+export type MachineWiseViewMode = 'detail' | 'summary';
+export type MachineWiseShortageUnit = 'taka' | 'meter';
+
+export interface MachineWiseFilter {
+  reportType: MachineWiseReportType;
+  view: MachineWiseViewMode;
+  stockType: MachineWiseStockType;
+  companyId?: string;
+  machine?: string;
+  party?: string;
+  jobParty?: string;
+  gQuality?: string;
+  grayQuality?: boolean;
+  qualityDesignReq?: boolean;
+  bhidanFrom?: string;
+  bhidanTo?: string;
+  useProductionDate?: boolean;
+  productionFrom?: string;
+  productionTo?: string;
+  shortageUnit?: MachineWiseShortageUnit;
+  shortageValue?: string;
+}
+
+export interface MachineWiseFilterOptions {
+  reportTypes: { value: string; label: string }[];
+  stockTypes: { value: string; label: string }[];
+  machines: { vv_mc_no: string; vv_mc_name: string }[];
+  parties: { vn_party_id: number; vv_party_name: string }[];
+  jobParties: { vn_job_party_id: number; vv_job_party_name: string }[];
+  gQualities: { vn_g_item: number; vv_g_item_name: string }[];
+  branches: number[];
+}
+
+export interface MachineWiseDetailRow {
+  id: string;
+  beamNo: string;
+  beamDate: string;
+  mcNo: string;
+  mcName: string;
+  loadDate: string;
+  bhidanDate: string;
+  productionDate: string;
+  meter: number;
+  taka: number;
+  recMeter: number;
+  recTaka: number;
+  balMeter: number;
+  balTaka: number;
+  status: number;
+  statusLabel: string;
+  partyName: string;
+  jobPartyName: string;
+  gQualityName: string;
+  ends: number;
+  design: string;
+  color: string;
+  pipeNo: string;
+  weight: number;
+}
+
+export interface MachineWiseSummaryRow {
+  id: string;
+  groupKey: string;
+  groupLabel: string;
+  beamCount: number;
+  meter: number;
+  taka: number;
+  balMeter: number;
+  balTaka: number;
+  weight: number;
+  recTaka: number;
+  recMeter: number;
+}
+
 // ─── Navigation Param Types ───────────────────────────────────────────────────
 
 export type RootStackParamList = {
   Splash: undefined;
+  AccountSwitcher: undefined;
   Login: undefined;
+  SubUserLogin: undefined;
+  AppLock: undefined;
   App: undefined;
 };
 
@@ -444,7 +584,8 @@ export type AppStackParamList = {
   PurchaseRegisterStack: undefined;
   GpRegisterStack: undefined;
   GpOsStack: undefined;
-  NonIssueStack: undefined;
+  StockStack: undefined;
+  MachineWiseStack: undefined;
   BankCashLedger: undefined;
   PartyLedger: undefined;
   About: undefined;
@@ -518,7 +659,8 @@ export type PurchaseRegisterStackParamList = {
 };
 
 export type GpRegisterStackParamList = {
-  GpRegister: undefined;
+  GpRegisterFilter: undefined;
+  GpRegister: { filter: ReportFilter };
   GpRegisterDetail: { entryId: string };
 };
 
@@ -528,15 +670,21 @@ export type StockStackParamList = {
   YarnStock: { reportType: StockReportType };
   GrayStock: { reportType: StockReportType };
   BeamStock: { reportType: StockReportType };
-  StockItemDetail: { itemId: string };
+  StockItemDetail: { 
+    itemName: string; 
+    lotNo?: string; 
+    category: 'yarn' | 'beam' | 'nonIssue'; 
+    stockSource?: 'yarn' | 'beam' | 'gray' | 'sequance'; 
+    reportType: StockReportType;
+    // When true, omit company= so details match the Common Company list aggregate.
+    commonCompany?: boolean;
+  };
 };
 
-export type NonIssueStackParamList = {
-  NonIssueSelection: undefined;
-  NonIssueFilter: { report: 'yarn' | 'gray' | 'beam' };
-  NonIssueYarn: { reportType: StockReportType };
-  NonIssueBeam: { reportType: StockReportType };
-  NonIssueGray: { reportType: StockReportType };
+export type MachineWiseStackParamList = {
+  MachineWiseFilter: undefined;
+  /** Kept for typing; report screen is not registered while Coming Soon is active. */
+  MachineWiseReport: { filter: MachineWiseFilter };
 };
 
 

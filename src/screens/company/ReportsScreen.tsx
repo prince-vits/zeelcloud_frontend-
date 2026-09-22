@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { LastSyncBadge } from '../../components/LastSyncBadge';
 import { useCompanyStore } from '../../store/companyStore';
+import { useAuthStore } from '../../store/authStore';
 import { useBookmarkStore } from '../../store/bookmarkStore';
 import { useRecentReportsStore } from '../../store/recentReportsStore';
 import { relativeTime } from '../../utils/relativeTime';
@@ -18,32 +19,54 @@ interface ReportModule {
   icon: string;
   color: string;
   route: keyof AppStackParamList;
+  permissionKey: string;
+  /** Extra form names that also unlock this module (OR with permissionKey). */
+  permissionKeys?: string[];
+  comingSoon?: boolean;
 }
 
 const reportModules: ReportModule[] = [
-  { label: 'Sales Outstanding', desc: 'Party / broker / area wise', icon: 'currency-inr', color: '#2563EB', route: 'SalesOsStack' },
-  { label: 'Purchase Outstanding', desc: 'Supplier outstanding', icon: 'cart-outline', color: '#7C3AED', route: 'PurchaseOsStack' },
-  { label: 'GP Outstanding', desc: 'General purchase outstanding', icon: 'file-document-check-outline', color: '#8B5CF6', route: 'GpOsStack' },
-  { label: 'Sales Register', desc: 'Sales invoice register', icon: 'receipt', color: '#0EA5E9', route: 'SalesRegisterStack' },
-  { label: 'Purchase Register', desc: 'Purchase invoice register', icon: 'clipboard-list-outline', color: '#8B5CF6', route: 'PurchaseRegisterStack' },
-  { label: 'GP Register', desc: 'Job work / processing', icon: 'chart-bar', color: '#F59E0B', route: 'GpRegisterStack' },
-  { label: 'Non-Issue', desc: 'Yarn / beam / gray', icon: 'format-list-text', color: '#EF4444', route: 'NonIssueStack' },
-  { label: 'Bank / Cash Ledger', desc: 'Bank & cash balances', icon: 'bank-outline', color: '#06B6D4', route: 'BankCashLedger' },
-  { label: 'Party Ledger', desc: 'Party-wise balances', icon: 'account-cash-outline', color: '#EC4899', route: 'PartyLedger' },
+  { label: 'Sales Outstanding', desc: 'Party / broker / area wise', icon: 'currency-inr', color: Colors.primary, route: 'SalesOsStack', permissionKey: 'Sales OS' },
+  { label: 'Purchase Outstanding', desc: 'Supplier outstanding', icon: 'cart-outline', color: Colors.primaryLight, route: 'PurchaseOsStack', permissionKey: 'Purchase OS' },
+  { label: 'GP Outstanding', desc: 'General purchase outstanding', icon: 'file-document-check-outline', color: Colors.purple500, route: 'GpOsStack', permissionKey: 'GP OS' },
+  { label: 'Sales Register', desc: 'Sales invoice register', icon: 'receipt', color: Colors.blue500, route: 'SalesRegisterStack', permissionKey: 'Sales Register' },
+  { label: 'Purchase Register', desc: 'Purchase invoice register', icon: 'clipboard-list-outline', color: Colors.purple500, route: 'PurchaseRegisterStack', permissionKey: 'Purchase Register' },
+  { label: 'GP Register', desc: 'Job work / processing', icon: 'chart-bar', color: Colors.warning, route: 'GpRegisterStack', permissionKey: 'GP Register' },
+  { label: 'Non-Issue', desc: 'Yarn / beam / gray', icon: 'format-list-text', color: Colors.danger, route: 'StockStack', permissionKey: 'Non-Issue Stock' },
+  {
+    label: 'Machine Wise Beam Stock',
+    desc: 'Coming soon — temporarily unavailable',
+    icon: 'cog-outline',
+    color: Colors.purple600,
+    route: 'MachineWiseStack',
+    permissionKey: 'Machine Wise Beam Stock',
+    permissionKeys: ['Machine Wise Beam Stock', 'Beam Stock'],
+    comingSoon: true,
+  },
+  { label: 'Bank / Cash Ledger', desc: 'Bank & cash balances', icon: 'bank-outline', color: '#06B6D4', route: 'BankCashLedger', permissionKey: 'Bank Cash Ledger' },
+  { label: 'Party Ledger', desc: 'Party-wise balances', icon: 'account-cash-outline', color: '#EC4899', route: 'PartyLedger', permissionKey: 'Party Ledger' },
 ];
 
 export const ReportsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { selectedCompany } = useCompanyStore();
-  const { bookmarks, toggleBookmark, loadBookmarks } = useBookmarkStore();
-  const { recents, loadRecents, recordReport, clearRecents } = useRecentReportsStore();
+  const { user } = useAuthStore();
+  const { bookmarks, toggleBookmark } = useBookmarkStore();
+  const { recents, recordReport, clearRecents } = useRecentReportsStore();
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    loadBookmarks();
-    loadRecents();
-  }, []);
+  const allowedFormNames = user?.allowedForms?.map(f => f.formName) || [];
+  const visibleModules = user?.isSubuser
+    ? reportModules.filter((m) => {
+        const keys = m.permissionKeys ?? [m.permissionKey];
+        return keys.some((k) => allowedFormNames.includes(k));
+      })
+    : reportModules;
+
+  const visibleRecents = user?.isSubuser
+    ? recents.filter(r => visibleModules.some(m => m.route === r.route))
+    : recents;
 
   const openReport = (m: ReportModule) => {
     recordReport({ route: m.route, label: m.label, icon: m.icon, color: m.color });
@@ -79,7 +102,7 @@ export const ReportsScreen: React.FC = () => {
           </View>
         ) : null}
 
-        {!editing && recents.length > 0 ? (
+        {!editing && visibleRecents.length > 0 ? (
           <View style={styles.recentSection}>
             <View style={styles.recentHeader}>
               <View style={styles.recentTitleRow}>
@@ -95,7 +118,7 @@ export const ReportsScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.recentRow}
             >
-              {recents.map((r) => (
+              {visibleRecents.map((r) => (
                 <TouchableOpacity
                   key={r.route}
                   style={styles.recentCard}
@@ -117,7 +140,7 @@ export const ReportsScreen: React.FC = () => {
           </View>
         ) : null}
 
-        {reportModules.map((m) => {
+        {visibleModules.map((m) => {
           const marked = bookmarks.includes(m.route);
           return (
             <TouchableOpacity
@@ -130,7 +153,14 @@ export const ReportsScreen: React.FC = () => {
                 <Icon name={m.icon} size={22} color={m.color} />
               </View>
               <View style={styles.info}>
-                <Text style={styles.label}>{m.label}</Text>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>{m.label}</Text>
+                  {m.comingSoon ? (
+                    <View style={styles.comingSoonBadge}>
+                      <Text style={styles.comingSoonText}>Coming Soon</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.desc}>{m.desc}</Text>
               </View>
               {editing ? (
@@ -234,7 +264,19 @@ const styles = StyleSheet.create({
   },
   icon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
   info: { flex: 1 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   label: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
   desc: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary, marginTop: 1 },
+  comingSoonBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  comingSoonText: {
+    fontSize: 10,
+    fontWeight: Typography.fontWeights.bold,
+    color: '#B45309',
+  },
   rightNormal: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

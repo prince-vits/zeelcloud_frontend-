@@ -12,8 +12,7 @@ interface GradientHeaderProps {
   rightElement?: ReactNode;
 }
 
-// White app header with a centered title and optional back button.
-// (Name kept as GradientHeader for backwards-compatible imports.)
+// App header — white surface, dark indigo title, light indigo accents.
 export const GradientHeader: React.FC<GradientHeaderProps> = ({
   title,
   subtitle,
@@ -26,10 +25,11 @@ export const GradientHeader: React.FC<GradientHeaderProps> = ({
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.sm }]}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+      <View style={styles.accentBar} />
       <View style={styles.row}>
         {onBack ? (
           <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
-            <Icon name={backIcon} size={22} color={Colors.textPrimary} />
+            <Icon name={backIcon} size={22} color={Colors.primary} />
           </TouchableOpacity>
         ) : (
           <View style={styles.backPlaceholder} />
@@ -62,6 +62,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  accentBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: Colors.primaryLight,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -71,7 +79,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: Colors.gray100,
+    backgroundColor: Colors.purple100,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -86,14 +94,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSizes.lg,
     fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
+    color: Colors.primary,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: Typography.fontSizes.sm,
-    color: Colors.textSecondary,
+    color: Colors.primaryLight,
     marginTop: 2,
     textAlign: 'center',
+    fontWeight: Typography.fontWeights.medium,
   },
   rightContainer: {
     minWidth: 38,

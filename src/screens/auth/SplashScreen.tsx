@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ZeelCloudLogo } from '../../components/ZeelCloudLogo';
 import { useAuthStore } from '../../store/authStore';
 import { Colors, Typography, Spacing } from '../../theme';
 import type { RootStackParamList } from '../../types';
@@ -25,25 +25,20 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   }, [isLoggedIn, navigation]);
 
   return (
-    <LinearGradient
-      colors={[Colors.gradientStart, Colors.gradientEnd]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>ZI</Text>
+        <View style={styles.logoBadge}>
+          <ZeelCloudLogo size={100} style={styles.logo} />
         </View>
         <Text style={styles.appName}>ZeelCloud</Text>
         <View style={styles.dotsRow}>
           <View style={[styles.dot, styles.dotActive]} />
-          <View style={styles.dot} />
+          <View style={[styles.dot, styles.dotMid]} />
           <View style={styles.dot} />
         </View>
       </View>
       <Text style={styles.poweredBy}>Powered by Zeel Infosys</Text>
-    </LinearGradient>
+    </View>
   );
 };
 
@@ -52,27 +47,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.primary,
   },
   logoContainer: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  logoBadge: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.4)',
   },
-  logoText: {
-    fontSize: 36,
-    fontWeight: Typography.fontWeights.extraBold,
-    color: Colors.textWhite,
+  logo: {
+    marginBottom: 0,
   },
   appName: {
     fontSize: Typography.fontSizes.xxxl,
@@ -89,7 +81,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  dotMid: {
+    backgroundColor: Colors.primaryLight,
   },
   dotActive: {
     backgroundColor: Colors.textWhite,
@@ -98,7 +93,7 @@ const styles = StyleSheet.create({
   },
   poweredBy: {
     fontSize: Typography.fontSizes.sm,
-    color: 'rgba(255,255,255,0.7)',
+    color: Colors.primaryLight,
     marginBottom: Spacing.xl,
   },
 });

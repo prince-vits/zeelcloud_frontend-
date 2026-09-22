@@ -3,7 +3,8 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'rea
 import { ZIcon as Icon } from './ZIcon';
 import { PrimaryButton } from './PrimaryButton';
 import { useBookmarkStore } from '../store/bookmarkStore';
-import { APP_MODULES } from '../data/modules';
+import { useAuthStore } from '../store/authStore';
+import { getAuthorizedModules } from '../data/modules';
 import { Colors, Typography, Spacing } from '../theme';
 
 interface BookmarkEditModalProps {
@@ -13,6 +14,8 @@ interface BookmarkEditModalProps {
 
 export const BookmarkEditModal: React.FC<BookmarkEditModalProps> = ({ visible, onClose }) => {
   const { bookmarks, toggleBookmark } = useBookmarkStore();
+  const { user } = useAuthStore();
+  const authorizedModules = getAuthorizedModules(user);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -32,7 +35,7 @@ export const BookmarkEditModal: React.FC<BookmarkEditModalProps> = ({ visible, o
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={styles.list}>
-            {APP_MODULES.map((m) => {
+            {authorizedModules.map((m) => {
               const active = bookmarks.includes(m.key);
               return (
                 <TouchableOpacity
@@ -44,7 +47,12 @@ export const BookmarkEditModal: React.FC<BookmarkEditModalProps> = ({ visible, o
                   <View style={[styles.rowIcon, { backgroundColor: `${m.color}1A` }]}>
                     <Icon name={m.icon} size={20} color={m.color} />
                   </View>
-                  <Text style={styles.rowLabel}>{m.label}</Text>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowLabel}>{m.label}</Text>
+                    {m.comingSoon ? (
+                      <Text style={styles.comingSoonHint}>Coming Soon</Text>
+                    ) : null}
+                  </View>
                   <Icon
                     name={active ? 'bookmark' : 'bookmark-outline'}
                     size={24}
@@ -110,6 +118,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: Spacing.md,
   },
-  rowLabel: { flex: 1, fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium },
+  rowText: { flex: 1 },
+  rowLabel: { fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium },
+  comingSoonHint: {
+    fontSize: Typography.fontSizes.xs,
+    color: '#B45309',
+    fontWeight: Typography.fontWeights.semiBold,
+    marginTop: 2,
+  },
   doneBtn: {},
 });

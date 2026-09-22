@@ -44,6 +44,7 @@ export const CreateSubUserScreen: React.FC = () => {
         password: values.password,
         contact_no: values.phone.trim(),
         form_ids: formIds,
+        is_sales_order_creation_allowed: values.isSalesOrderCreationAllowed,
       };
 
       if (firstName.trim()) createData.first_name = firstName;

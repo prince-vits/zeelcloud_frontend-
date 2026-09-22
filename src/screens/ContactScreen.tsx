@@ -1,55 +1,31 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { ZIcon as Icon } from '../components/ZIcon';
+import { ZeelCloudLogo } from '../components/ZeelCloudLogo';
 import { GradientHeader } from '../components/GradientHeader';
-import { Card } from '../components/Card';
-import { Colors, Typography, Spacing, BorderRadius } from '../theme';
+import { Colors, Typography, Spacing } from '../theme';
 
-const contactDetails = [
-  {
-    icon: 'phone',
-    label: 'Phone',
-    value: '+91 98765 43210',
-    action: () => Linking.openURL('tel:+919876543210'),
-    color: Colors.success,
-  },
-  {
-    icon: 'email-outline',
-    label: 'Email',
-    value: 'info@zeelinfosys.com',
-    action: () => Linking.openURL('mailto:info@zeelinfosys.com'),
-    color: Colors.info,
-  },
-  {
-    icon: 'whatsapp',
-    label: 'WhatsApp',
-    value: '+91 98765 43210',
-    action: () => Linking.openURL('https://wa.me/919876543210'),
-    color: '#25D366',
-  },
-  {
-    icon: 'map-marker',
-    label: 'Address',
-    value: 'Zeel Infosys Pvt Ltd, Ring Road, Surat - 395002, Gujarat, India',
-    action: () => Linking.openURL('https://maps.google.com/?q=Surat,Gujarat'),
-    color: Colors.danger,
-  },
-  {
-    icon: 'web',
-    label: 'Website',
-    value: 'www.zeelinfosys.com',
-    action: () => Linking.openURL('https://www.zeelinfosys.com'),
-    color: Colors.gradientStart,
-  },
-];
+const HEAD_OFFICE = {
+  title: 'Head Office',
+  lines: ['C433 Sumel Business Park-4,', 'Amdupura, Ahmedabad - 380025'],
+  phone: '9016433675',
+  tel: 'tel:9016433675',
+};
 
-const officeHours = [
-  { day: 'Monday - Friday', time: '9:00 AM - 6:00 PM' },
-  { day: 'Saturday', time: '9:00 AM - 2:00 PM' },
-  { day: 'Sunday', time: 'Closed' },
-];
+const BRANCH_OFFICE = {
+  title: 'Branch Office',
+  lines: [
+    'B311 Udhna sangh building, Udhyog nagar,',
+    'Road no 10, Udhna, Surat - 394210',
+  ],
+  phone: '9712999741',
+  tel: 'tel:9712999741',
+};
+
+const WEBSITE_URL = 'https://www.zeelinfotech.co.in';
+const WEBSITE_LABEL = 'www.zeelinfotech.co.in';
+const EMAIL = 'info@zeelinfotech.co.in';
 
 export const ContactScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -57,57 +33,55 @@ export const ContactScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <GradientHeader title="Contact Us" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Get in Touch</Text>
-          <Text style={styles.subtitle}>
-            For support, queries, or feedback, feel free to reach out to us through any of the following channels.
-          </Text>
-          {contactDetails.map((c) => (
-            <TouchableOpacity
-              key={c.label}
-              style={styles.contactRow}
-              onPress={c.action}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.contactIcon, { backgroundColor: c.color + '20' }]}>
-                <Icon name={c.icon} size={22} color={c.color} />
-              </View>
-              <View style={styles.contactInfo}>
-                <Text style={styles.contactLabel}>{c.label}</Text>
-                <Text style={styles.contactValue}>{c.value}</Text>
-              </View>
-              <Icon name="chevron-right" size={18} color={Colors.gray300} />
-            </TouchableOpacity>
-          ))}
-        </Card>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.centered}>
+          <ZeelCloudLogo size={80} style={styles.logo} />
+          <Text style={styles.companyName}>Zeel Infosys</Text>
 
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Office Hours</Text>
-          {officeHours.map((h) => (
-            <View key={h.day} style={styles.hoursRow}>
-              <Text style={styles.hoursDay}>{h.day}</Text>
-              <Text style={[styles.hoursTime, h.time === 'Closed' && styles.closedText]}>
-                {h.time}
+          <View style={styles.officeBlock}>
+            <Text style={styles.officeText}>
+              {HEAD_OFFICE.title}: {HEAD_OFFICE.lines[0]}
+            </Text>
+            <Text style={styles.officeText}>{HEAD_OFFICE.lines[1]}</Text>
+            <TouchableOpacity onPress={() => Linking.openURL(HEAD_OFFICE.tel)} activeOpacity={0.7}>
+              <Text style={styles.contactLine}>
+                Contact : <Text style={styles.link}>{HEAD_OFFICE.phone}</Text>
               </Text>
-            </View>
-          ))}
-        </Card>
+            </TouchableOpacity>
+          </View>
 
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Support</Text>
-          <TouchableOpacity
-            style={styles.supportBtn}
-            onPress={() =>
-              Alert.alert('Support', 'Support ticket creation will be available in the next update.')
-            }
-            activeOpacity={0.85}
-          >
-            <Icon name="ticket-account" size={20} color={Colors.gradientStart} />
-            <Text style={styles.supportText}>Create Support Ticket</Text>
-            <Icon name="arrow-right" size={16} color={Colors.gradientStart} />
-          </TouchableOpacity>
-        </Card>
+          <View style={styles.divider} />
+
+          <View style={styles.officeBlock}>
+            <Text style={styles.officeText}>
+              {BRANCH_OFFICE.title}: {BRANCH_OFFICE.lines[0]}
+            </Text>
+            <Text style={styles.officeText}>{BRANCH_OFFICE.lines[1]}</Text>
+            <TouchableOpacity onPress={() => Linking.openURL(BRANCH_OFFICE.tel)} activeOpacity={0.7}>
+              <Text style={styles.contactLine}>
+                Contact : <Text style={styles.link}>{BRANCH_OFFICE.phone}</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footerLinks}>
+            <Text style={styles.footerPlain}>
+              For more details visit :{' '}
+              <Text style={styles.link} onPress={() => Linking.openURL(WEBSITE_URL)}>
+                {WEBSITE_LABEL}
+              </Text>
+            </Text>
+            <Text style={styles.footerPlain}>
+              Email :{' '}
+              <Text style={styles.link} onPress={() => Linking.openURL(`mailto:${EMAIL}`)}>
+                {EMAIL}
+              </Text>
+            </Text>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -115,52 +89,61 @@ export const ContactScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xl },
-  card: { marginBottom: Spacing.md },
-  cardTitle: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
-  subtitle: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary, marginBottom: Spacing.md, lineHeight: 20 },
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: Spacing.md,
-  },
-  contactIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  content: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+  },
+  centered: {
     alignItems: 'center',
   },
-  contactInfo: { flex: 1 },
-  contactLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginBottom: 2 },
-  contactValue: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.medium, color: Colors.textPrimary },
-  hoursRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  logo: {
+    marginBottom: Spacing.md,
   },
-  hoursDay: { fontSize: Typography.fontSizes.base, color: Colors.textPrimary },
-  hoursTime: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.medium, color: Colors.success },
-  closedText: { color: Colors.danger },
-  supportBtn: {
-    flexDirection: 'row',
+  companyName: {
+    fontSize: Typography.fontSizes.xl,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.primary,
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+  },
+  officeBlock: {
     alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: Colors.purple100,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.gradientStart,
+    paddingHorizontal: Spacing.sm,
   },
-  supportText: {
-    flex: 1,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.semiBold,
-    color: Colors.gradientStart,
+  officeText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  contactLine: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+  },
+  divider: {
+    alignSelf: 'stretch',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.md,
+  },
+  footerLinks: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  footerPlain: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  link: {
+    color: Colors.info,
+    textDecorationLine: 'underline',
+    fontWeight: Typography.fontWeights.medium,
   },
 });

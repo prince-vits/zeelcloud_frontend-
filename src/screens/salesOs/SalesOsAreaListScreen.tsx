@@ -19,7 +19,7 @@ type Props = {
   route: RouteProp<SalesOsStackParamList, 'SalesOsAreaList'>;
 };
 
-const AREA_COLORS = ['#7C3AED', '#2563EB', '#10B981', '#F59E0B', '#EF4444'];
+const AREA_COLORS = [Colors.primaryLight, Colors.primary, Colors.success, Colors.warning, Colors.danger];
 
 export const SalesOsAreaListScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCompany } = useCompanyStore();

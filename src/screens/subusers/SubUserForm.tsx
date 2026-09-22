@@ -17,6 +17,7 @@ export interface SubUserFormValues {
   phone: string;
   companyName: string;
   isActive: boolean;
+  isSalesOrderCreationAllowed: boolean;
   allowedModules: string[];
 }
 
@@ -52,6 +53,7 @@ export const SubUserForm: React.FC<SubUserFormProps> = ({
   const [phone, setPhone] = useState(initial?.phone ?? '');
   const [companyName, setCompanyName] = useState(initial?.companyName ?? 'Zeel Textiles Pvt. Ltd.');
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [isSalesOrderCreationAllowed, setIsSalesOrderCreationAllowed] = useState(initial?.isSalesOrderCreationAllowed ?? false);
   const [allowed, setAllowed] = useState<string[]>(initial?.allowedModules ?? []);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -102,6 +104,7 @@ export const SubUserForm: React.FC<SubUserFormProps> = ({
       phone: phone.trim(),
       companyName: companyName.trim(),
       isActive,
+      isSalesOrderCreationAllowed,
       allowedModules: allowed,
     });
   };
@@ -150,6 +153,9 @@ export const SubUserForm: React.FC<SubUserFormProps> = ({
           <Text style={styles.moduleError}>{errors.allowedModules}</Text>
         ) : null}
         <View style={styles.moduleGrid}>
+          <View style={styles.moduleCell}>
+            <Checkbox label="Sales Order Creation" checked={isSalesOrderCreationAllowed} onToggle={() => setIsSalesOrderCreationAllowed(!isSalesOrderCreationAllowed)} />
+          </View>
           {PERMISSION_MODULES.map((m) => (
             <View key={m} style={styles.moduleCell}>
               <Checkbox label={m} checked={allowed.includes(m)} onToggle={() => toggleModule(m)} />

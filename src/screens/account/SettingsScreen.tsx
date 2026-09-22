@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Switch, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { Card } from '../../components/Card';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { useAuthStore } from '../../store/authStore';
 import { Colors, Typography, Spacing } from '../../theme';
+import type { AppStackParamList } from '../../types';
 
 interface Row {
   icon: string;
@@ -18,20 +21,51 @@ interface Row {
 
 export const SettingsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const { logout } = useAuthStore();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { deactivateSession, appLockEnabled, setAppLockEnabled, lockApp } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
   const [biometric, setBiometric] = useState(false);
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+  const handleDeactivate = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out of this account?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+      { text: 'Sign Out', style: 'destructive', onPress: () => deactivateSession() },
     ]);
+  };
+
+  const handleSwitchAccount = () => {
+    // Bubbles to RootNavigator (AccountSwitcher is outside AppStackParamList)
+    (navigation as any).navigate('AccountSwitcher');
+  };
+
+  const handleAppLockToggle = (enabled: boolean) => {
+    setAppLockEnabled(enabled);
+  };
+
+  const handleLockNow = () => {
+    if (!appLockEnabled) {
+      Alert.alert('App Lock Off', 'Turn on App Lock first to use this.');
+      return;
+    }
+    lockApp();
   };
 
   const preferences: Row[] = [
     { icon: 'bell-outline', label: 'Push Notifications', type: 'toggle', value: notifications, onToggle: setNotifications },
+    {
+      icon: 'lock-outline',
+      label: 'App Lock',
+      type: 'toggle',
+      value: appLockEnabled,
+      onToggle: handleAppLockToggle,
+    },
     { icon: 'fingerprint', label: 'Biometric Login', type: 'toggle', value: biometric, onToggle: setBiometric },
+    {
+      icon: 'shield-lock-outline',
+      label: 'Lock App Now',
+      type: 'link',
+      onPress: handleLockNow,
+    },
     {
       icon: 'lock-reset',
       label: 'Change Password',
@@ -41,8 +75,8 @@ export const SettingsScreen: React.FC = () => {
   ];
 
   const about: Row[] = [
-    { icon: 'information-outline', label: 'About ZeelCloud', type: 'link', onPress: () => Alert.alert('ZeelCloud', 'Version 1.0.0\nEnterprise ERP for the textile industry.') },
-    { icon: 'help-circle-outline', label: 'Help & Support', type: 'link', onPress: () => Alert.alert('Help & Support', 'Email: support@zeelinfosys.com') },
+    { icon: 'information-outline', label: 'About ZeelCloud', type: 'link', onPress: () => navigation.navigate('About') },
+    { icon: 'phone-outline', label: 'Contact Us', type: 'link', onPress: () => navigation.navigate('Contact') },
   ];
 
   const renderRow = (row: Row, isLast: boolean) => (
@@ -87,7 +121,8 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionLabel}>About</Text>
         <Card style={styles.card}>{about.map((r, i) => renderRow(r, i === about.length - 1))}</Card>
 
-        <PrimaryButton title="Sign Out" icon="logout" variant="danger" onPress={handleLogout} style={styles.logout} />
+        <PrimaryButton title="Switch Account" icon="account-switch" onPress={handleSwitchAccount} style={styles.switchButton} />
+        <PrimaryButton title="Sign Out of this Account" icon="logout" variant="danger" onPress={handleDeactivate} style={styles.logout} />
       </ScrollView>
     </View>
   );
@@ -140,5 +175,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontWeight: Typography.fontWeights.medium,
   },
-  logout: { marginTop: Spacing.sm },
+  switchButton: { marginTop: Spacing.md, marginBottom: Spacing.sm },
+  logout: { marginTop: 0 },
 });

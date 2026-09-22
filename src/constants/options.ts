@@ -4,7 +4,7 @@
 // values here (or route through a masterApi) without touching screens.
 
 // Module permissions a sub user can be granted (matches the design's lists).
-// Maps to form_ids in the backend (1-12)
+// Maps to form_ids in the backend (1-13)
 export const PERMISSION_MODULES: string[] = [
   'Bank Details',
   'Sales OS',
@@ -18,6 +18,7 @@ export const PERMISSION_MODULES: string[] = [
   'Non-Issue Stock',
   'Yarn Stock',
   'Beam Stock',
+  'Machine Wise Beam Stock',
 ];
 
 // Mapping from module name to form_id (backend database IDs)
@@ -34,6 +35,7 @@ export const MODULE_TO_FORM_ID: Record<string, number> = {
   'Non-Issue Stock': 10,
   'Yarn Stock': 11,
   'Beam Stock': 12,
+  'Machine Wise Beam Stock': 13,
 };
 
 // Mapping from form_id to module name
@@ -50,6 +52,7 @@ export const FORM_ID_TO_MODULE: Record<number, string> = {
   10: 'Non-Issue Stock',
   11: 'Yarn Stock',
   12: 'Beam Stock',
+  13: 'Machine Wise Beam Stock',
 };
 
 // Sales Order — item sort options

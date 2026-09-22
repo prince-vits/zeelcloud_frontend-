@@ -4,15 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../components/ZIcon';
 import { Colors, Typography } from '../theme';
 
-// Shared bottom-tab styling for both the Account and Company contexts.
-// Uses the bottom safe-area inset so the bar clears the home indicator.
+// Shared bottom-tab styling — white bar, dark indigo active, light indigo idle.
 export const useBaseTabScreenOptions = (): BottomTabNavigationOptions => {
   const insets = useSafeAreaInsets();
   const bottomInset = insets.bottom > 0 ? insets.bottom : 10;
   return {
     headerShown: false,
     tabBarActiveTintColor: Colors.primary,
-    tabBarInactiveTintColor: Colors.gray400,
+    tabBarInactiveTintColor: Colors.primaryLight,
     tabBarStyle: {
       backgroundColor: Colors.surface,
       borderTopColor: Colors.border,

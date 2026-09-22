@@ -5,11 +5,13 @@ import { SettingsScreen } from '../screens/account/SettingsScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { SubUserStack } from './SubUserStack';
 import { useBaseTabScreenOptions, tabIcon } from './tabConfig';
+import { useAuthStore } from '../store/authStore';
 import type { AccountTabParamList } from '../types';
 
 const Tab = createBottomTabNavigator<AccountTabParamList>();
 
 export const AccountTabs: React.FC = () => {
+  const { user } = useAuthStore();
   const screenOptions = useBaseTabScreenOptions();
   return (
   <Tab.Navigator screenOptions={screenOptions}>
@@ -18,11 +20,13 @@ export const AccountTabs: React.FC = () => {
       component={CompaniesScreen}
       options={{ tabBarLabel: 'Companies', tabBarIcon: tabIcon('office-building-outline') }}
     />
-    <Tab.Screen
-      name="SubUsers"
-      component={SubUserStack}
-      options={{ tabBarLabel: 'Sub Users', tabBarIcon: tabIcon('account-group-outline') }}
-    />
+    {!user?.isSubuser && (
+      <Tab.Screen
+        name="SubUsers"
+        component={SubUserStack}
+        options={{ tabBarLabel: 'Sub Users', tabBarIcon: tabIcon('account-group-outline') }}
+      />
+    )}
     <Tab.Screen
       name="ProfileTab"
       component={ProfileScreen}

@@ -69,7 +69,12 @@ export const DateField: React.FC<DateFieldProps> = ({
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <TouchableOpacity style={styles.inputRow} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
         <Icon name="calendar" size={16} color={Colors.gradientStart} />
-        <Text style={[styles.valueText, !display && styles.placeholderText]} numberOfLines={1}>
+        <Text 
+          style={[styles.valueText, !display && styles.placeholderText]} 
+          numberOfLines={1}
+          adjustsFontSizeToFit={true}
+          minimumFontScale={0.5}
+        >
           {display || placeholder}
         </Text>
         {allowClear && display ? (

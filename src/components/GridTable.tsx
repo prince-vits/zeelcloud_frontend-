@@ -12,6 +12,8 @@ export interface GridColumn<T> {
   flex?: number;
   align?: 'left' | 'right' | 'center';
   render?: (item: T) => React.ReactNode;
+  /** Max lines for default (non-render) cell text. Default 2. */
+  numberOfLines?: number;
 }
 
 interface GridTableProps<T> {
@@ -22,6 +24,8 @@ interface GridTableProps<T> {
   rowStyle?: (item: T) => ViewStyle | undefined;
   emptyText?: string;
   hideHeader?: boolean;
+  /** Align row cells to the top so multi-line party names don't clip neighbors. */
+  alignRowsTop?: boolean;
 }
 
 // OG-style data grid, ported from the .NET MAUI app's report tables
@@ -36,11 +40,12 @@ export function GridTable<T>({
   rowStyle,
   emptyText = 'No records',
   hideHeader = false,
+  alignRowsTop = false,
 }: GridTableProps<T>) {
   const cellStyle = (col: GridColumn<T>): ViewStyle => ({
-    ...(col.width != null ? { width: col.width } : { flex: col.flex ?? 1 }),
+    ...(col.width != null ? { width: col.width } : { flex: col.flex ?? 1, minWidth: 0 }),
     alignItems: col.align === 'right' ? 'flex-end' : col.align === 'left' ? 'flex-start' : 'center',
-    justifyContent: 'center',
+    justifyContent: alignRowsTop ? 'flex-start' : 'center',
     paddingHorizontal: 3,
   });
 
@@ -57,7 +62,12 @@ export function GridTable<T>({
           return (
             <Row
               key={keyExtractor(item, index)}
-              style={[styles.row, styles.bodyRow, rowStyle?.(item)]}
+              style={[
+                styles.row,
+                styles.bodyRow,
+                alignRowsTop && styles.rowTop,
+                rowStyle?.(item),
+              ]}
               {...(onRowPress ? { onPress: () => onRowPress(item), activeOpacity: 0.7 } : {})}
             >
               {columns.map((col) => (
@@ -65,7 +75,10 @@ export function GridTable<T>({
                   {col.render ? (
                     col.render(item)
                   ) : (
-                    <Text style={styles.td} numberOfLines={2}>
+                    <Text
+                      style={styles.td}
+                      numberOfLines={col.numberOfLines ?? 2}
+                    >
                       {String((item as Record<string, unknown>)[col.key] ?? '')}
                     </Text>
                   )}
@@ -81,7 +94,7 @@ export function GridTable<T>({
 
 export function GridTableHeader<T>({ columns }: { columns: GridColumn<T>[] }) {
   const cellStyle = (col: GridColumn<T>): ViewStyle => ({
-    ...(col.width != null ? { width: col.width } : { flex: col.flex ?? 1 }),
+    ...(col.width != null ? { width: col.width } : { flex: col.flex ?? 1, minWidth: 0 }),
     alignItems: col.align === 'right' ? 'flex-end' : col.align === 'left' ? 'flex-start' : 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
@@ -105,10 +118,34 @@ export const GridText: React.FC<{
   children: React.ReactNode;
   bold?: boolean;
   color?: string;
-}> = ({ children, bold, color }) => (
+  align?: 'left' | 'center' | 'right';
+  fontSize?: number;
+  /** Pass undefined to allow unrestricted wrapping (no ellipsis cut). */
+  numberOfLines?: number;
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
+}> = ({
+  children,
+  bold,
+  color,
+  align,
+  fontSize,
+  numberOfLines = 2,
+  adjustsFontSizeToFit,
+  minimumFontScale,
+}) => (
   <Text
-    numberOfLines={2}
-    style={[styles.td, bold && styles.tdBold, color ? { color } : null]}
+    numberOfLines={numberOfLines}
+    adjustsFontSizeToFit={adjustsFontSizeToFit}
+    minimumFontScale={minimumFontScale}
+    style={[
+      styles.td,
+      bold && styles.tdBold,
+      color ? { color } : null,
+      align ? { textAlign: align } : null,
+      fontSize ? { fontSize } : null,
+      adjustsFontSizeToFit ? { width: '100%' } : null,
+    ]}
   >
     {children}
   </Text>
@@ -118,11 +155,16 @@ const styles = StyleSheet.create({
   table: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
+    width: '100%',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 40,
+    width: '100%',
+  },
+  rowTop: {
+    alignItems: 'flex-start',
   },
   headerRow: {
     backgroundColor: '#FDF6DB', // OG Yellow200Accent header strip

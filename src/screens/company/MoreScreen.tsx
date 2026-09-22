@@ -21,19 +21,32 @@ interface MoreItem {
 export const MoreScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const { user, logout } = useAuthStore();
+  const { user, deactivateSession, refreshProfile } = useAuthStore();
   const { selectedCompany } = useCompanyStore();
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+  const handleDeactivate = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out of this account?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+      { text: 'Sign Out', style: 'destructive', onPress: () => deactivateSession() },
     ]);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshProfile();
+    setIsRefreshing(false);
+  };
+
+  const handleSwitchAccount = () => {
+    // Cast to any to bypass the AppStackParamList typing since it bubbles up to RootNavigator
+    (navigation as any).navigate('AccountSwitcher');
   };
 
   const items: MoreItem[] = [
     { icon: 'swap-horizontal', label: 'Switch Company', onPress: () => navigation.navigate('AccountTabs') },
     { icon: 'account-group-outline', label: 'Sub Users', onPress: () => navigation.navigate('AccountTabs') },
+    { icon: 'refresh', label: isRefreshing ? 'Syncing...' : 'Sync Profile & Permissions', onPress: handleRefresh },
     { icon: 'information-outline', label: 'About ZeelCloud', onPress: () => navigation.navigate('About') },
     { icon: 'phone-outline', label: 'Contact Us', onPress: () => navigation.navigate('Contact') },
   ];
@@ -76,7 +89,8 @@ export const MoreScreen: React.FC = () => {
           ))}
         </Card>
 
-        <PrimaryButton title="Sign Out" icon="logout" variant="danger" onPress={handleLogout} style={styles.logout} />
+        <PrimaryButton title="Switch Account" icon="account-switch" onPress={handleSwitchAccount} style={styles.switchButton} />
+        <PrimaryButton title="Sign Out of this Account" icon="logout" variant="danger" onPress={handleDeactivate} style={styles.logout} />
       </ScrollView>
     </View>
   );
@@ -126,5 +140,6 @@ const styles = StyleSheet.create({
     marginRight: Spacing.md,
   },
   rowLabel: { flex: 1, fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium },
-  logout: {},
+  switchButton: { marginTop: Spacing.md, marginBottom: Spacing.sm },
+  logout: { marginTop: 0 },
 });

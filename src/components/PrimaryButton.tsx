@@ -8,7 +8,6 @@ import {
   View,
   TextStyle,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ZIcon as Icon } from './ZIcon';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 
@@ -17,7 +16,7 @@ interface PrimaryButtonProps {
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  variant?: 'solid' | 'outline' | 'ghost' | 'danger';
+  variant?: 'solid' | 'outline' | 'ghost' | 'danger' | 'secondary';
   icon?: string;
   style?: ViewStyle;
 }
@@ -56,23 +55,36 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
         onPress={onPress}
         disabled={isDisabled}
         activeOpacity={0.85}
-        style={[styles.touchable, isDisabled && styles.disabledTouchable, style]}
+        style={[styles.solidButton, isDisabled && styles.disabledTouchable, style]}
       >
-        <LinearGradient
-          colors={isDisabled ? ['#B8B8C8', '#A0A0B0'] : [Colors.gradientStart, Colors.gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.gradient}
-        >
-          <ButtonContent
-            loading={loading}
-            icon={icon}
-            title={title}
-            iconColor={Colors.textWhite}
-            textStyle={styles.solidText}
-            indicatorColor={Colors.textWhite}
-          />
-        </LinearGradient>
+        <ButtonContent
+          loading={loading}
+          icon={icon}
+          title={title}
+          iconColor={Colors.textWhite}
+          textStyle={styles.solidText}
+          indicatorColor={Colors.textWhite}
+        />
+      </TouchableOpacity>
+    );
+  }
+
+  if (variant === 'secondary') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={isDisabled}
+        activeOpacity={0.85}
+        style={[styles.secondaryButton, isDisabled && styles.disabledTouchable, style]}
+      >
+        <ButtonContent
+          loading={loading}
+          icon={icon}
+          title={title}
+          iconColor={Colors.textWhite}
+          textStyle={styles.solidText}
+          indicatorColor={Colors.textWhite}
+        />
       </TouchableOpacity>
     );
   }
@@ -89,9 +101,9 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
           loading={loading}
           icon={icon}
           title={title}
-          iconColor={Colors.gradientStart}
+          iconColor={Colors.primary}
           textStyle={styles.outlineText}
-          indicatorColor={Colors.gradientStart}
+          indicatorColor={Colors.primary}
         />
       </TouchableOpacity>
     );
@@ -128,28 +140,35 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
         loading={loading}
         icon={icon}
         title={title}
-        iconColor={Colors.gradientStart}
+        iconColor={Colors.primary}
         textStyle={styles.ghostText}
-        indicatorColor={Colors.gradientStart}
+        indicatorColor={Colors.primary}
       />
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  touchable: {
+  solidButton: {
     borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-  },
-  disabledTouchable: {
-    opacity: 0.6,
-  },
-  gradient: {
+    backgroundColor: Colors.primary,
     paddingVertical: 14,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
+  },
+  secondaryButton: {
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  disabledTouchable: {
+    opacity: 0.6,
   },
   content: {
     flexDirection: 'row',
@@ -167,7 +186,8 @@ const styles = StyleSheet.create({
   outlineButton: {
     borderRadius: BorderRadius.md,
     borderWidth: 2,
-    borderColor: Colors.gradientStart,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
     paddingVertical: 13,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
@@ -179,7 +199,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   outlineText: {
-    color: Colors.gradientStart,
+    color: Colors.primary,
     fontSize: Typography.fontSizes.md,
     fontWeight: Typography.fontWeights.semiBold,
   },
@@ -187,6 +207,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 2,
     borderColor: Colors.danger,
+    backgroundColor: Colors.surface,
     paddingVertical: 13,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
@@ -206,7 +227,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   ghostText: {
-    color: Colors.gradientStart,
+    color: Colors.primary,
     fontSize: Typography.fontSizes.md,
     fontWeight: Typography.fontWeights.medium,
   },

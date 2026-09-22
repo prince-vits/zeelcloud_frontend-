@@ -8,6 +8,7 @@ import { EmptyState } from './EmptyState';
 import { GridTable, GridColumn, GridText } from './GridTable';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 import { toDDMMYYYY } from '../utils/formatDate';
+import { generateInvoicePDF } from '../utils/invoicePdfGenerator';
 import type { BillDetail, BillDetailItem } from '../types';
 
 export type BillModule = 'sales' | 'purchase' | 'gp';
@@ -27,7 +28,7 @@ const money = (n: number) =>
 const num3 = money;
 
 // Items grid columns per module — exactly the OG *RegisterDetails column sets.
-const itemColumnsFor = (module: BillModule): GridColumn<BillDetailItem>[] => {
+const itemColumnsFor = (module: BillModule, detail?: BillDetail): GridColumn<BillDetailItem>[] => {
   const name: GridColumn<BillDetailItem> = {
     key: 'name', label: 'Item Name', flex: 1.9, align: 'left',
     render: (i) => <GridText bold>{i.name}</GridText>,
@@ -37,14 +38,32 @@ const itemColumnsFor = (module: BillModule): GridColumn<BillDetailItem>[] => {
     render: (i) => <GridText>{money(i.amount)}</GridText>,
   };
   if (module === 'sales') {
-    return [
-      name,
-      { key: 'taka', label: 'Taka', flex: 0.7, render: (i) => <GridText>{String(i.taka ?? 0)}</GridText> },
-      { key: 'pallu', label: 'Pallu', flex: 0.7, render: (i) => <GridText>{String(i.pallu ?? 0)}</GridText> },
-      { key: 'meter', label: 'Meter', flex: 1.1, render: (i) => <GridText>{num3(i.meter ?? 0)}</GridText> },
-      { key: 'weight', label: 'Weight', flex: 1, render: (i) => <GridText>{num3(i.weight ?? 0)}</GridText> },
-      amount,
-    ];
+    const cols: GridColumn<BillDetailItem>[] = [name];
+    
+    // Check if the API indicates this is "Cartons" (Combination 2)
+    const isCombo2 = [detail?.field1, detail?.field2, detail?.field3]
+      .some(f => f?.toLowerCase().includes('crtn') || f?.toLowerCase().includes('carton'));
+
+    if (isCombo2) {
+      // Combination 2: Crtn, Pallu, Weight, Cops, Amount
+      cols.push(
+        { key: 'taka', label: 'Crtn', flex: 0.7, render: (i) => <GridText>{String(i.taka ?? 0)}</GridText> },
+        { key: 'pallu', label: 'Pallu', flex: 0.7, render: (i) => <GridText>{String(i.pallu ?? 0)}</GridText> },
+        { key: 'weight', label: 'Weight', flex: 1, render: (i) => <GridText>{num3(i.weight ?? 0)}</GridText> },
+        { key: 'meter', label: 'Cops', flex: 1.1, render: (i) => <GridText>{num3(i.meter ?? 0)}</GridText> }
+      );
+    } else {
+      // Combination 1: Taka, Pallu, Meter, Weight, Amount
+      cols.push(
+        { key: 'taka', label: 'Taka', flex: 0.7, render: (i) => <GridText>{String(i.taka ?? 0)}</GridText> },
+        { key: 'pallu', label: 'Pallu', flex: 0.7, render: (i) => <GridText>{String(i.pallu ?? 0)}</GridText> },
+        { key: 'meter', label: 'Meter', flex: 1.1, render: (i) => <GridText>{num3(i.meter ?? 0)}</GridText> },
+        { key: 'weight', label: 'Weight', flex: 1, render: (i) => <GridText>{num3(i.weight ?? 0)}</GridText> }
+      );
+    }
+    
+    cols.push(amount);
+    return cols;
   }
   if (module === 'purchase') {
     return [
@@ -69,9 +88,9 @@ const totalsFor = (module: BillModule, d: BillDetail): { left: TotalsRow[]; righ
   if (module === 'sales') {
     return {
       left: [
-        { label: 'Grand Total', value: d.grandTotal },
+        { label: 'Grant Total', value: d.grandTotal },
         { label: 'Claim', value: d.claim },
-        { label: 'Discout', value: d.discount },
+        { label: 'Discount', value: d.discount },
         { label: 'Add Other', value: d.addOther1 },
         { label: 'Freight', value: d.freight },
         { label: 'IGST', value: d.igst },
@@ -83,15 +102,15 @@ const totalsFor = (module: BillModule, d: BillDetail): { left: TotalsRow[]; righ
         { label: 'Add Other', value: d.addOther2 },
         { label: 'Add Less', value: d.addLess },
         { label: 'TCS', value: d.tcs },
-        { label: 'Roud Of', value: d.roundOf },
+        { label: 'Round Off', value: d.roundOf },
       ],
     };
   }
   if (module === 'purchase') {
     return {
       left: [
-        { label: 'Grand Total', value: d.grandTotal },
-        { label: 'Discout', value: d.discount },
+        { label: 'Grant Total', value: d.grandTotal },
+        { label: 'Discount', value: d.discount },
         { label: 'Add Other', value: d.addOther1 },
         { label: 'Freight', value: d.freight },
         { label: 'IGST', value: d.igst },
@@ -102,14 +121,14 @@ const totalsFor = (module: BillModule, d: BillDetail): { left: TotalsRow[]; righ
         { label: 'Add Other', value: d.addOther2 },
         { label: 'Add Less', value: d.addLess },
         { label: 'TCS', value: d.tcs },
-        { label: 'Roud Of', value: d.roundOf },
+        { label: 'Round Off', value: d.roundOf },
       ],
     };
   }
   return {
     left: [
-      { label: 'Grand Total', value: d.grandTotal },
-      { label: 'Discout', value: d.discount },
+      { label: 'Grant Total', value: d.grandTotal },
+      { label: 'Discount', value: d.discount },
       { label: 'Add Other', value: d.addOther1 },
       { label: 'IGST', value: d.igst },
     ],
@@ -119,12 +138,12 @@ const totalsFor = (module: BillModule, d: BillDetail): { left: TotalsRow[]; righ
       { label: 'Add Other', value: d.addOther2 },
       { label: 'Add Less', value: d.addLess },
       { label: 'TCS', value: d.tcs },
-      { label: 'Roud Of', value: d.roundOf },
+      { label: 'Round Off', value: d.roundOf },
     ],
   };
 };
 
-const REPORT_OPTIONS = ['Tax Invoice', 'Sales Invoice'];
+const REPORT_OPTIONS = ['Tax Invoice', 'Job Work Tax Invoice', 'Multi GST Tax Invoice'];
 
 // OG register bill page (SalesRegisterDetails & siblings), section for section:
 // company strip → invoice header (No/Date/party/ADD + Select Report + WhatsApp)
@@ -151,18 +170,7 @@ export const BillDetailView: React.FC<BillDetailViewProps> = ({
 
   const handleShare = async () => {
     if (!detail) return;
-    const lines = detail.items
-      .map((i) => `${i.name} | ${money(i.amount)}`)
-      .join('\n');
-    await Share.share({
-      message:
-        `${title}\n` +
-        `Invoice No: ${detail.invoiceNo}\n` +
-        `Date: ${toDDMMYYYY(detail.date)}\n` +
-        `Party: ${detail.partyName}\n\n` +
-        `${lines}\n\n` +
-        `NET AMOUNT : ₹ ${money(detail.netAmount)}`,
-    });
+    await generateInvoicePDF(detail, module, reportType);
   };
 
   if (loading) return <LoadingOverlay visible message="Loading..." />;
@@ -190,7 +198,7 @@ export const BillDetailView: React.FC<BillDetailViewProps> = ({
                   <Text style={styles.selectValue}>{reportType}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.waBtn} onPress={handleShare} activeOpacity={0.8}>
-                  <Icon name="whatsapp" size={20} color={Colors.textWhite} />
+                  <Icon name="file-pdf-box" size={20} color={Colors.textWhite} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -202,7 +210,7 @@ export const BillDetailView: React.FC<BillDetailViewProps> = ({
           {/* Items grid */}
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
             <GridTable
-              columns={itemColumnsFor(module)}
+              columns={itemColumnsFor(module, detail)}
               data={detail.items}
               keyExtractor={(_, idx) => String(idx)}
               emptyText="No items"
@@ -240,7 +248,7 @@ export const BillDetailView: React.FC<BillDetailViewProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerBlock: {
-    backgroundColor: '#E7F0FE',
+    backgroundColor: Colors.infoLight,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,

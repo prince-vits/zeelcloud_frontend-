@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { companyApi } from '../services/api';
 import type { Company } from '../types';
+import { registerStoreReset } from './storeRegistry';
 
 interface CompanyState {
   companies: Company[];
@@ -8,10 +9,16 @@ interface CompanyState {
   isLoading: boolean;
   selectCompany: (company: Company) => void;
   fetchCompanies: () => Promise<void>;
+  reset: () => void;
 }
 
-export const useCompanyStore = create<CompanyState>((set, get) => ({
-  companies: [],
+export const useCompanyStore = create<CompanyState>((set, get) => {
+  const reset = () => set({ companies: [], selectedCompany: null, isLoading: false });
+  registerStoreReset(reset);
+
+  return {
+    companies: [],
+
   selectedCompany: null,
   isLoading: false,
 
@@ -37,4 +44,6 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
       set({ isLoading: false });
     }
   },
-}));
+  reset,
+  };
+});

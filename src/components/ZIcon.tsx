@@ -12,8 +12,15 @@ interface ZIconProps {
   onPress?: () => void;
 }
 
-// Wrapper that accepts any string icon name and casts internally.
-// This avoids littering files with `as any` casts while keeping icon usage clean.
-export const ZIcon: React.FC<ZIconProps> = ({ name, size = 20, color, style, onPress }) => (
-  <MaterialCommunityIcons name={name as MCIName} size={size} color={color} style={style} onPress={onPress} />
-);
+/** Map non-MCI / deprecated names to valid MaterialCommunityIcons glyphs. */
+const ICON_ALIASES: Record<string, MCIName> = {
+  thread: 'needle',
+  yarn: 'needle',
+};
+
+export const ZIcon: React.FC<ZIconProps> = ({ name, size = 20, color, style, onPress }) => {
+  const resolved = (ICON_ALIASES[name] ?? name) as MCIName;
+  return (
+    <MaterialCommunityIcons name={resolved} size={size} color={color} style={style} onPress={onPress} />
+  );
+};

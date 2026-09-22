@@ -66,88 +66,66 @@ export const InlineInterestCalculator: React.FC<InlineInterestCalculatorProps> =
   totalInterest,
   selectedBillAmount,
 }) => {
-  const gst = totalInterest * 0.05;
-  const tds = totalInterest * 0.10;
-  const netInterest = totalInterest + gst - tds;
+  const roundedInterest = Math.round(totalInterest);
+  const gst = roundedInterest * 0.05;
+  const tds = Math.round(roundedInterest * 0.10);
+  const netInterest = roundedInterest + gst - tds;
   const totalOs = selectedBillAmount + netInterest;
 
   return (
     <View style={styles.container}>
-      {/* Radio Buttons */}
-      <View style={styles.radioRow}>
-        <TouchableOpacity style={styles.radio} onPress={() => setInterestType('yearly')} activeOpacity={0.7}>
-          <Icon name={interestType === 'yearly' ? 'radiobox-marked' : 'radiobox-blank'} size={20} color={interestType === 'yearly' ? Colors.primary : Colors.gray400} />
-          <Text style={styles.radioLabel}>Yearly</Text>
+      {/* Settings Row (All inline) */}
+      <View style={styles.settingsRow}>
+        <TouchableOpacity style={styles.compactTypeBtn} onPress={() => setInterestType(interestType === 'yearly' ? 'monthly' : 'yearly')} activeOpacity={0.7}>
+          <Text style={styles.compactTypeBtnText}>{interestType === 'yearly' ? 'Yearly' : 'Monthly'}</Text>
+          <Icon name="swap-horizontal" size={14} color={Colors.primary} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.radio} onPress={() => setInterestType('monthly')} activeOpacity={0.7}>
-          <Icon name={interestType === 'monthly' ? 'radiobox-marked' : 'radiobox-blank'} size={20} color={interestType === 'monthly' ? Colors.primary : Colors.gray400} />
-          <Text style={styles.radioLabel}>Monthly</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Inputs */}
-      <View style={styles.inputRow}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Interest(%)</Text>
-          <TextInput
-            style={styles.input}
-            value={interestRate}
-            onChangeText={setInterestRate}
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Days</Text>
-          <TextInput
-            style={styles.input}
-            value={interestDays}
-            onChangeText={setInterestDays}
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Extra Days</Text>
-          <TextInput
-            style={styles.input}
-            value={extraDays}
-            onChangeText={setExtraDays}
-            keyboardType="numeric"
-            placeholder="0"
-          />
-        </View>
-      </View>
-
-      {/* Selected Bills Total O/s Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardHeader}>Selected Bills Total O/s</Text>
         
-        <View style={styles.row}>
-          <Text style={styles.label}>Bills Interest Amount:</Text>
-          <Text style={styles.value}>{formatMoney(totalInterest)}</Text>
+        <View style={styles.compactInputGroup}>
+          <Text style={styles.inputLabel}>Int(%)</Text>
+          <TextInput style={styles.compactInput} value={interestRate} onChangeText={setInterestRate} keyboardType="numeric" />
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>GST(5%):</Text>
-          <Text style={styles.value}>+ {formatMoney(gst)}</Text>
+        <View style={styles.compactInputGroup}>
+          <Text style={styles.inputLabel}>Days</Text>
+          <TextInput style={styles.compactInput} value={interestDays} onChangeText={setInterestDays} keyboardType="numeric" />
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>TDS(10%):</Text>
-          <Text style={styles.value}>- {formatMoney(tds)}</Text>
+        <View style={styles.compactInputGroup}>
+          <Text style={styles.inputLabel}>+Days</Text>
+          <TextInput style={styles.compactInput} value={extraDays} onChangeText={setExtraDays} keyboardType="numeric" placeholder="0" />
+        </View>
+      </View>
+
+      {/* Selected Bills Total O/s Card (Single Column List) */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitleCentered}>Selected Bills Total O/s</Text>
+        
+        <View style={styles.rowCompact}>
+          <Text style={styles.labelCompact}>Bills Interest Amount:</Text>
+          <Text style={styles.valueCompact}>{formatMoney(roundedInterest)}</Text>
+        </View>
+        <View style={styles.rowCompact}>
+          <Text style={styles.labelCompact}>GST(5%):</Text>
+          <Text style={styles.valueCompact}>+ {formatMoney(gst)}</Text>
+        </View>
+        <View style={styles.rowCompact}>
+          <Text style={styles.labelCompact}>TDS(10%):</Text>
+          <Text style={styles.valueCompact}>- {formatMoney(tds)}</Text>
         </View>
 
         <View style={styles.divider} />
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Net Interest Amount After TDS:</Text>
-          <Text style={styles.value}>{formatMoney(netInterest)}</Text>
+        <View style={styles.rowCompact}>
+          <Text style={styles.labelCompact}>Net Interest Amount After TDS:</Text>
+          <Text style={styles.valueCompact}>{formatMoney(netInterest)}</Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Selected Bill Amount:</Text>
-          <Text style={styles.value}>{formatMoney(selectedBillAmount)}</Text>
+        <View style={styles.rowCompact}>
+          <Text style={styles.labelCompact}>Selected Bill Amount:</Text>
+          <Text style={styles.valueCompact}>{formatMoney(selectedBillAmount)}</Text>
         </View>
-
+        
         <View style={styles.divider} />
-
-        <View style={styles.row}>
+        
+        <View style={styles.rowCompact}>
           <Text style={styles.labelBold}>Total Selected Bill O/s:</Text>
           <Text style={styles.valueBold}>{formatMoney(totalOs)}</Text>
         </View>
@@ -158,88 +136,95 @@ export const InlineInterestCalculator: React.FC<InlineInterestCalculatorProps> =
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
   },
-  radioRow: {
+  settingsRow: {
     flexDirection: 'row',
-    marginBottom: Spacing.md,
-    gap: Spacing.xl,
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  radio: {
+  compactTypeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    height: 32,
+    backgroundColor: Colors.surface,
   },
-  radioLabel: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textPrimary,
-    fontWeight: Typography.fontWeights.medium,
+  compactTypeBtnText: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeights.semiBold,
   },
-  inputRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  inputGroup: {
+  compactInputGroup: {
     flex: 1,
   },
   inputLabel: {
-    fontSize: Typography.fontSizes.xs,
-    color: Colors.textPrimary,
+    fontSize: 10,
+    color: Colors.textSecondary,
     fontWeight: Typography.fontWeights.semiBold,
-    marginBottom: 4,
+    marginBottom: 2,
+    textAlign: 'center',
   },
-  input: {
+  compactInput: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    fontSize: Typography.fontSizes.sm,
+    paddingHorizontal: 4,
+    height: 32,
+    fontSize: Typography.fontSizes.xs,
     color: Colors.textPrimary,
     backgroundColor: Colors.surface,
+    textAlign: 'center',
   },
   card: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.surface,
-    padding: Spacing.md,
+    padding: Spacing.sm,
   },
-  cardHeader: {
-    fontSize: Typography.fontSizes.md,
+  cardTitleCentered: {
+    fontSize: Typography.fontSizes.sm,
     fontWeight: Typography.fontWeights.bold,
-    color: Colors.primary,
+    color: Colors.primary, // Brand indigo
     textAlign: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  row: {
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
+  },
+  rowCompact: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
+    paddingVertical: 2,
   },
-  label: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textPrimary,
-  },
-  value: {
-    fontSize: Typography.fontSizes.sm,
+  labelCompact: {
+    fontSize: 12,
     color: Colors.textPrimary,
     fontWeight: Typography.fontWeights.medium,
   },
+  valueCompact: {
+    fontSize: 12,
+    color: Colors.textPrimary,
+    fontWeight: Typography.fontWeights.semiBold,
+  },
   labelBold: {
-    fontSize: Typography.fontSizes.sm,
+    fontSize: 12,
     color: Colors.textPrimary,
     fontWeight: Typography.fontWeights.bold,
   },
   valueBold: {
-    fontSize: Typography.fontSizes.base,
+    fontSize: 12,
     color: Colors.textPrimary,
     fontWeight: Typography.fontWeights.bold,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.textPrimary,
-    marginVertical: Spacing.sm,
   },
 });

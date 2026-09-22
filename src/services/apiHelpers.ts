@@ -1,5 +1,4 @@
 import { API_BASE_URL, API_HEADERS } from '../config';
-import { useAuthStore } from '../store/authStore';
 import { useSyncStore } from '../store/syncStore';
 import type {
   BankAccount,
@@ -9,6 +8,10 @@ import type {
   GpOsInvoice,
   GpOsParty,
   GpRegisterEntry,
+  MachineWiseDetailRow,
+  MachineWiseFilter,
+  MachineWiseFilterOptions,
+  MachineWiseSummaryRow,
   PartyLedgerAccount,
   PurchaseOsInvoice,
   PurchaseOsParty,
@@ -21,15 +24,23 @@ import type {
   SalesOsPartyGroup,
   SalesOsSalesPerson,
   StockItem,
+  StockDetailItem,
   StockReportType,
 } from '../types';
 
 type JsonRecord = Record<string, unknown>;
 
+// Lazy require to avoid circular dependency
+const getAuthStore = () => require('../store/authStore').useAuthStore;
+
 export function getAuthToken(): string {
-  const token = useAuthStore.getState().token;
+  const token = getAuthStore().getState().token;
   if (!token) throw new Error('No authentication token available');
   return token;
+}
+
+export function getActiveAccountId(): string | null {
+  return getAuthStore().getState().activeAccountId;
 }
 
 export function authHeaders(): Record<string, string> {
@@ -39,12 +50,32 @@ export function authHeaders(): Record<string, string> {
   };
 }
 
+export class StaleRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleRequestError';
+  }
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const accountIdAtStart = getActiveAccountId();
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     headers: { ...authHeaders(), ...(init?.headers as Record<string, string> | undefined) },
   });
+
+  const accountIdAtEnd = getActiveAccountId();
+  if (accountIdAtStart !== accountIdAtEnd) {
+    throw new StaleRequestError('Request cancelled due to account switch');
+  }
+
+  if (response.status === 401) {
+    // Invalidate session if token is rejected by backend
+    getAuthStore().getState().deactivateSession();
+    throw new Error('Authentication failed (401)');
+  }
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
@@ -410,14 +441,12 @@ export const mapRegisterEntry = (item: JsonRecord): RegisterEntry => ({
 
 export const mapGpRegisterEntry = (item: JsonRecord): GpRegisterEntry => ({
   id: String(item.vn_invoice_id ?? item.id ?? ''),
+  entryNo: asString(item.vn_ak_no),
+  billNo: asString(item.vn_invoice_no),
   date: asString(item.vd_invoice_date),
   partyName: asString(item.party_name),
-  grayQty: asNumber(item.vn_gray_qty),
-  beamQty: asNumber(item.vn_beam_qty),
-  processType: asString(item.vv_process_type),
   amount: asNumber(item.vn_net_total),
-  lotNo: asString(item.vv_lot_no) || undefined,
-  quality: asString(item.vv_quality) || undefined,
+  description: asString(item.vv_description) || undefined,
 });
 
 export const mapPartyLedgerAccount = (item: JsonRecord): PartyLedgerAccount => ({
@@ -439,12 +468,17 @@ export function aggregateStockData(data: JsonRecord[], reportType: StockReportTy
   for (const row of data) {
     const itemName = asString(row.vv_item_name);
     const lotNo = reportType === 'qualityLotGrade' ? asString(row.vv_lot_no) : '';
-    const key = `${itemName}|${lotNo}`;
+    const grade = reportType === 'qualityLotGrade' ? asString(row.vv_summary) : '';
+    const key =
+      reportType === 'qualityLotGrade'
+        ? `${itemName}|${lotNo}|${grade}`
+        : `${itemName}|${lotNo}`;
 
     if (!map.has(key)) {
       map.set(key, {
         vv_item_name: itemName,
         vv_lot_no: lotNo,
+        vv_summary: grade,
         vn_meter__sum: asNumber(row.vn_meter__sum ?? row.vn_meter),
         vn_weight__sum: asNumber(row.vn_weight__sum ?? row.vn_weight),
         vn_pallu__sum: asNumber(row.vn_pallu__sum ?? row.vn_pallu),
@@ -463,14 +497,36 @@ export function aggregateStockData(data: JsonRecord[], reportType: StockReportTy
       agg.vn_beam__sum = asNumber(agg.vn_beam__sum) + asNumber(row.vn_beam__sum ?? row.vn_beam);
       agg.vv_taka_no__count = asNumber(agg.vv_taka_no__count) + (asNumber(row.vv_taka_no__count) || (row.vv_taka_no || row.id ? 1 : 0));
     }
-  }
+}
   return Array.from(map.values());
 }
+
+export const mapStockDetailItem = (item: JsonRecord): StockDetailItem => ({
+  id: String(item.id ?? `${asString(item.vv_item_name)}-${Math.random()}`),
+  itemName: asString(item.vv_item_name),
+  crtnNo: asString(item.vv_taka_no),
+  netWeight: asNumber(item.vn_net_weight),
+  cheese: asNumber(item.vn_cheese),
+  twist: asString(item.vv_twist),
+  grade: asString(item.vv_summary),
+  lotNo: asString(item.vv_lot_no),
+  partyName: asString(item.vv_party_name),
+  date: asString(item.vd_uptodate),
+  meter: asNumber(item.vn_meter),
+  weight: asNumber(item.vn_weight),
+  pallu: asNumber(item.vn_pallu),
+  mcNo: asString(item.vv_mc_no),
+  beamNo: asString(item.vv_beam_no),
+  pipeType: asString(item.vv_summary),
+  mark: asString(item.vv_mark),
+});
 
 export const mapYarnStockItem = (item: JsonRecord, category: 'yarn' | 'beam' | 'nonIssue'): StockItem => ({
   // Item name alone is NOT unique — a Quality + Lot report repeats the same item
   // under several lot numbers, which produced duplicate React keys. Include the lot.
-  id: [asString(item.vv_item_name), asString(item.vv_lot_no)].filter(Boolean).join('|'),
+  id: [asString(item.vv_item_name), asString(item.vv_lot_no), asString(item.vv_summary)]
+    .filter(Boolean)
+    .join('|'),
   name: asString(item.vv_item_name),
   quality: asString(item.vv_item_name),
   qty: asNumber(item.vn_meter__sum ?? item.vn_weight__sum),
@@ -488,6 +544,7 @@ export const mapYarnStockItem = (item: JsonRecord, category: 'yarn' | 'beam' | '
   crtn: asNumber(item.vv_taka_no__count),
   avgWt: asNumber(item.vn_weight__sum) / (asNumber(item.vv_taka_no__count) || 1),
   lotNo: asString(item.vv_lot_no),
+  grade: asString(item.vv_summary),
 });
 
 
@@ -516,10 +573,18 @@ const mapBillItem = (row: JsonRecord, module: 'sales' | 'purchase' | 'gp'): Bill
   if (module === 'sales') {
     return {
       ...base,
+      hsnCode: asString(row.vn_hsn_code),
+      design: asString(row.vv_item_code), // Fallback map if client clarifies it's code
       taka: asNumber(row.vn_taka_no),
       pallu: asNumber(row.vn_cheese), // OG "Pallu" column binds VN_Cheese
       meter: asNumber(row.vn_meter),
       weight: asNumber(row.vn_weight),
+      sgstRate: asNumber(row.vn_sgst_rate ?? row.sgst_rate),
+      cgstRate: asNumber(row.vn_cgst_rate ?? row.cgst_rate),
+      igstRate: asNumber(row.vn_igst_rate ?? row.igst_rate),
+      sgstAmount: asNumber(row.vn_sgst_amt ?? row.sgst_amount),
+      cgstAmount: asNumber(row.vn_cgst_amt ?? row.cgst_amount),
+      igstAmount: asNumber(row.vn_igst_amt ?? row.igst_amount),
     };
   }
   if (module === 'purchase') {
@@ -547,6 +612,19 @@ export const mapBillDetail = (record: JsonRecord, module: 'sales' | 'purchase' |
     date: asString(record.vd_invoice_date),
     partyName: asString(record.party_name) || asString(asRecord(asRecord(record.account).party).vv_party_name),
     partyAddress: composePartyAddress(asRecord(record.account)),
+    deliveryPartyName: asString(record.delivery_party_name) || asString(asRecord(asRecord(record.account).delivery_party).vv_party_name),
+    vehicalNo: asString(record.vv_vehical_no),
+    ewayBillNo: asString(record.vv_eway_bill_no),
+    irn: asString(record.vv_irn),
+    ackNo: asString(record.vv_ack_no),
+    brokerName: asString(record.vv_brocker_name) || undefined,
+    gstNo: asString(asRecord(asRecord(record.account).party).vv_gstin_no) || undefined,
+    mobileNo: asString(asRecord(asRecord(record.account).party).vv_mobile) || asString(asRecord(asRecord(record.account).party).phone) || undefined,
+    field1: asString(record.field1) || undefined,
+    field2: asString(record.field2) || undefined,
+    field3: asString(record.field3) || undefined,
+    field4: asString(record.field4) || undefined,
+    field5: asString(record.field5) || undefined,
     items,
     grandTotal: asNumber(record.vn_grant_total),
     claim: asNumber(record.vn_discount1),
@@ -580,3 +658,115 @@ export function stockEndpoint(
   const suffix = reportType === 'qualityLotGrade' ? 'summary/item-summary-lot' : 'summary/item';
   return `/${base}/${suffix}`;
 }
+
+// ─── Machine Wise Beam Stock ──────────────────────────────────────────────────
+
+export function buildMachineWiseQuery(filter?: MachineWiseFilter): string {
+  const params = new URLSearchParams();
+  if (!filter) return '';
+
+  params.set('report_type', filter.reportType || 'machine');
+  params.set('view', filter.view || 'detail');
+  params.set('stock_type', filter.stockType || 'all');
+
+  if (filter.companyId) params.set('company', filter.companyId);
+  if (filter.machine) params.set('machines', filter.machine);
+  if (filter.party) params.set('parties', filter.party);
+  if (filter.jobParty) params.set('job_parties', filter.jobParty);
+  if (filter.gQuality) params.set('g_qualities', filter.gQuality);
+  if (filter.grayQuality) params.set('gray_quality', '1');
+  if (filter.qualityDesignReq) params.set('quality_design_req', '1');
+  if (filter.bhidanFrom) params.set('bhidan_from', filter.bhidanFrom);
+  if (filter.bhidanTo) params.set('bhidan_to', filter.bhidanTo);
+
+  if (filter.useProductionDate) {
+    params.set('use_production_date', '1');
+    if (filter.productionFrom) params.set('production_from', filter.productionFrom);
+    if (filter.productionTo) params.set('production_to', filter.productionTo);
+  }
+
+  if (filter.shortageUnit) params.set('shortage_unit', filter.shortageUnit);
+  if (filter.shortageValue && Number(filter.shortageValue) > 0) {
+    params.set('shortage_value', filter.shortageValue);
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+export const mapMachineWiseDetailRow = (item: JsonRecord): MachineWiseDetailRow => ({
+  id: String(item.id ?? `${item.vv_beam_no ?? ''}-${item.vv_mc_no ?? ''}`),
+  beamNo: asString(item.vv_beam_no),
+  beamDate: asString(item.vd_beam_date),
+  mcNo: asString(item.vv_mc_no),
+  mcName: asString(item.vv_mc_name),
+  loadDate: asString(item.vd_l_date),
+  bhidanDate: asString(item.vd_b_date),
+  productionDate: asString(item.vd_pasaria_date),
+  meter: asNumber(item.vn_meter),
+  taka: asNumber(item.vn_taka),
+  recMeter: asNumber(item.vv_rec_meter),
+  recTaka: asNumber(item.vn_rec_taka),
+  balMeter: asNumber(item.vn_bal_meter),
+  balTaka: asNumber(item.vn_bal_taka),
+  status: asNumber(item.vn_status),
+  statusLabel: asString(item.status_label),
+  partyName: asString(item.vv_party_name),
+  jobPartyName: asString(item.vv_job_party_name),
+  gQualityName: asString(item.vv_g_item_name),
+  ends: asNumber(item.vn_ends),
+  design: asString(item.vv_design),
+  color: asString(item.vv_color),
+  pipeNo: asString(item.vv_pipe_no),
+  weight: asNumber(item.vn_weight),
+});
+
+export const mapMachineWiseSummaryRow = (item: JsonRecord, index: number): MachineWiseSummaryRow => ({
+  id: String(item.group_key ?? `summary-${index}`),
+  groupKey: asString(item.group_key),
+  groupLabel: asString(item.group_label),
+  beamCount: asNumber(item.beam_count),
+  meter: asNumber(item.vn_meter__sum),
+  taka: asNumber(item.vn_taka__sum),
+  balMeter: asNumber(item.vn_bal_meter__sum),
+  balTaka: asNumber(item.vn_bal_taka__sum),
+  weight: asNumber(item.vn_weight__sum),
+  recTaka: asNumber(item.vn_rec_taka__sum),
+  recMeter: asNumber(item.vv_rec_meter__sum),
+});
+
+export const mapMachineWiseFilterOptions = (payload: unknown): MachineWiseFilterOptions => {
+  const record = asRecord(payload);
+  const asOptionList = (value: unknown) =>
+    Array.isArray(value) ? value.map((row) => asRecord(row)) : [];
+
+  return {
+    reportTypes: asOptionList(record.report_types).map((row) => ({
+      value: asString(row.value),
+      label: asString(row.label),
+    })),
+    stockTypes: asOptionList(record.stock_types).map((row) => ({
+      value: asString(row.value),
+      label: asString(row.label),
+    })),
+    machines: asOptionList(record.machines).map((row) => ({
+      vv_mc_no: asString(row.vv_mc_no),
+      vv_mc_name: asString(row.vv_mc_name),
+    })),
+    parties: asOptionList(record.parties).map((row) => ({
+      vn_party_id: asNumber(row.vn_party_id),
+      vv_party_name: asString(row.vv_party_name),
+    })),
+    jobParties: asOptionList(record.job_parties).map((row) => ({
+      vn_job_party_id: asNumber(row.vn_job_party_id),
+      vv_job_party_name: asString(row.vv_job_party_name),
+    })),
+    gQualities: asOptionList(record.g_qualities).map((row) => ({
+      vn_g_item: asNumber(row.vn_g_item),
+      vv_g_item_name: asString(row.vv_g_item_name),
+    })),
+    branches: Array.isArray(record.branches)
+      ? record.branches.map((b) => asNumber(b)).filter((b) => b > 0)
+      : [],
+  };
+};

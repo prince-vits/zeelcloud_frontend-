@@ -16,16 +16,16 @@ import { useAuthStore } from '../../store/authStore';
 import { InputField } from '../../components/InputField';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { API_BASE_URL } from '../../config';
-import { Colors, Typography, Spacing } from '../../theme';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { RootStackParamList } from '../../types';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
-export const LoginScreen: React.FC<Props> = () => {
+export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { login, isLoading } = useAuthStore();
+  const { loginAndAddAccount, isLoading, deactivateSession } = useAuthStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,10 +46,21 @@ export const LoginScreen: React.FC<Props> = () => {
       valid = false;
     }
     if (!valid) return;
-    const success = await login(username, password);
+    const success = await loginAndAddAccount(username, password);
     if (!success) {
       Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
+      return;
     }
+
+    const user = useAuthStore.getState().user;
+    if (user?.isSubuser) {
+      deactivateSession();
+      Alert.alert('Access Denied', 'You are a sub-user. Please use the Sub User Login screen.');
+      return;
+    }
+
+    // Unconditionally navigate to the main app since LoginScreen persists in the router
+    navigation.reset({ index: 0, routes: [{ name: 'App' }] });
   };
 
   const handleForgot = () => {
@@ -90,8 +101,8 @@ export const LoginScreen: React.FC<Props> = () => {
         </View>
 
         {/* Welcome */}
-        <Text style={styles.welcomeText}>Welcome Back!</Text>
-        <Text style={styles.signInText}>Login to continue to your account.</Text>
+        <Text style={styles.welcomeText}>Admin Login</Text>
+        <Text style={styles.signInText}>Login to access the admin dashboard.</Text>
 
         {/* Form */}
         <View style={styles.form}>
@@ -135,11 +146,21 @@ export const LoginScreen: React.FC<Props> = () => {
           </View>
 
           <PrimaryButton
-            title="LOGIN"
+            title="LOGIN AS ADMIN"
             onPress={handleLogin}
             loading={isLoading}
             style={styles.loginButton}
           />
+
+          {/* Navigate to Sub User Login */}
+          <TouchableOpacity 
+            style={styles.subUserLinkBtn} 
+            onPress={() => navigation.navigate('SubUserLogin')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.subUserLinkText}>I am a Sub-User</Text>
+            <Icon name="arrow-right" size={16} color={Colors.primary} />
+          </TouchableOpacity>
 
           {/* Secure login badge */}
           <View style={styles.secureRow}>
@@ -161,7 +182,7 @@ export const LoginScreen: React.FC<Props> = () => {
 };
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.surface },
+  flex: { flex: 1, backgroundColor: Colors.background },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: Spacing.lg,
@@ -193,7 +214,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   brandLight: {
-    color: Colors.textPrimary,
+    color: Colors.primaryLight,
   },
   tagline: {
     fontSize: Typography.fontSizes.xs,
@@ -205,7 +226,7 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: Typography.fontSizes.xxl,
     fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
+    color: Colors.primary,
     marginBottom: 4,
   },
   signInText: {
@@ -213,7 +234,14 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.xl,
   },
-  form: { gap: 0 },
+  form: {
+    gap: 0,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,6 +309,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textMuted,
     marginTop: 4,
+  },
+  subUserLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 8,
+  },
+  subUserLinkText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeights.semiBold,
   },
 });
 

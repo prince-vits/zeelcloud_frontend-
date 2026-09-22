@@ -16,7 +16,7 @@ type Props = {
 };
 
 const REPORT_META: Record<Props['route']['params']['report'], { title: string; target: keyof StockStackParamList; icon: string }> = {
-  yarn: { title: 'Yarn Stock', target: 'YarnStock', icon: 'thread' },
+  yarn: { title: 'Yarn Stock', target: 'YarnStock', icon: 'needle' },
   gray: { title: 'Gray Stock', target: 'GrayStock', icon: 'package-variant-closed' },
   beam: { title: 'Beam Stock', target: 'BeamStock', icon: 'layers' },
 };

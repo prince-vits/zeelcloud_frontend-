@@ -69,31 +69,40 @@ export const SalesOrderListScreen: React.FC = () => {
   };
 
   const renderItem = ({ item }: { item: SalesOrder }) => {
-    const totalQty = item.items?.reduce((sum, i) => sum + (i.vn_qnty || 0), 0) || 0;
+    const totalQty = item.items?.reduce((sum, i) => sum + (i.qnty || 0), 0) || 0;
 
     return (
       <View style={styles.card}>
         {/* Header Section */}
         <View style={styles.cardHeader}>
-          <View style={styles.orderNoBadge}>
-            <Text style={styles.orderNoText}>Order No: {item.orderNo || 'N/A'}</Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.orderNoBadge}>
+              <Text style={styles.orderNoText}>Order No: {item.orderNo || 'N/A'}</Text>
+            </View>
+            <View style={[styles.syncBadge, { backgroundColor: item.is_synced ? Colors.success + '20' : Colors.warning + '20' }]}>
+              <Text style={[styles.syncBadgeText, { color: item.is_synced ? Colors.success : Colors.warning }]}>
+                {item.is_synced ? 'Synced' : 'Not Synced'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.actionIcons}>
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('CreateSalesOrder', { orderId: String(item.id) })}
-            >
-              <Icon name="pencil" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              activeOpacity={0.7}
-              onPress={() => handleDelete(item.id)}
-            >
-              <Icon name="trash-can-outline" size={20} color={Colors.danger} />
-            </TouchableOpacity>
-          </View>
+          {!item.is_synced && (
+            <View style={styles.actionIcons}>
+              <TouchableOpacity 
+                style={styles.iconButton} 
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('CreateSalesOrder', { orderId: String(item.id) })}
+              >
+                <Icon name="pencil" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.iconButton} 
+                activeOpacity={0.7}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Icon name="trash-can-outline" size={20} color={Colors.danger} />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Grid Section */}
@@ -141,14 +150,14 @@ export const SalesOrderListScreen: React.FC = () => {
         </View>
 
         {/* Row 4 (Optional) */}
-        {!!item.remark && (
+        {item.remark ? (
           <View style={[styles.gridRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
             <View style={[styles.gridCol, { flex: 1 }]}>
               <Text style={styles.label}>Remarks</Text>
               <Text style={styles.value}>{item.remark}</Text>
             </View>
           </View>
-        )}
+        ) : null}
       </View>
     );
   };
@@ -254,8 +263,24 @@ const styles = StyleSheet.create({
   },
   orderNoText: {
     color: Colors.primary,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.semiBold,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  syncBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginLeft: Spacing.sm,
+  },
+  syncBadgeText: {
+    fontSize: Typography.fontSizes.xs,
+    fontWeight: Typography.fontWeights.semiBold,
   },
   actionIcons: {
     flexDirection: 'row',

@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, Linking, Text, ScrollView, TouchableOpacity, StyleSheet, Alert , Switch} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Switch } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ZIcon as Icon } from '../../components/ZIcon';
 import { GradientHeader } from '../../components/GradientHeader';
 import { CompanyStrip } from '../../components/CompanyStrip';
-import { Card } from '../../components/Card';
-import { GridTable, GridColumn, GridText } from '../../components/GridTable';
+import { GridTable, GridTableHeader, GridColumn, GridText } from '../../components/GridTable';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
 import { InlineInterestCalculator, useInlineInterest } from '../../components/InlineInterestCalculator';
 import { salesOsApi } from '../../services/api';
-import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
+import { Colors, Typography, Spacing } from '../../theme';
 import type { SalesOsStackParamList, SalesOsSalesPerson, SalesOsParty, SalesOsInvoice } from '../../types';
 import { formatCurrency } from '../../utils/currency';
-import { toDDMMYY, toDDMMYYYY } from '../../utils/formatDate';
+import { toDDMMYY } from '../../utils/formatDate';
+import { generateOutstandingReportPDF } from '../../utils/pdfGenerator';
 
 type Props = {
   navigation: NativeStackNavigationProp<SalesOsStackParamList, 'SalesOsSalesPersonDetail'>;
@@ -29,7 +29,7 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
   const [showInterest, setShowInterest] = useState(false);
   const interestCalc = useInlineInterest();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  
+
   useEffect(() => {
     Promise.all([
       salesOsApi.getSalesPersonById(salesPersonId, filter),
@@ -46,18 +46,15 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // Flatten all invoices across all parties
   const allInvoices = parties.flatMap((p) => p.bills || []);
   const visibleInvoices = filter?.onlyDue ? allInvoices.filter((i) => i.daysLeft < 0) : allInvoices;
-  
+
   const selectedInvoices = visibleInvoices.filter((i) => selectedIds.includes(i.id));
   const selectedTotal = selectedInvoices.reduce((sum, i) => sum + i.outstanding, 0);
 
-
-  // OG bill grid — same columns as the party detail page.
   const billColumns: GridColumn<SalesOsInvoice>[] = [
     {
-      key: 'sel', label: '', width: 30,
+      key: 'sel', label: '', width: 24,
       render: (inv) => (
         <Icon
           name={selectedIds.includes(inv.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
@@ -66,12 +63,12 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
         />
       ),
     },
-        { key: 'bookCode', label: 'Book', width: 35 },
-    { key: 'number', label: 'Bill No', flex: 0.8, render: (inv) => <GridText bold>{inv.number}</GridText> },
+    { key: 'bookCode', label: 'Book', width: 32, align: 'left' },
+    { key: 'number', label: 'Bill No', flex: showInterest ? 0.65 : 0.8, align: 'left', render: (inv) => <GridText align="left" bold fontSize={showInterest ? 10 : undefined}>{inv.number}</GridText> },
     { key: 'date', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
-    { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays ?? 0)}</GridText> },
+    { key: 'termDays', label: 'Terms', width: 35, align: 'right', render: (inv) => <GridText align="right">{String(inv.termDays ?? 0)}</GridText> },
     {
-      key: 'dueDays', label: 'Due Days', width: 42,
+      key: 'dueDays', label: 'Due Days', width: 40,
       render: (inv) => (
         <GridText bold color={-inv.daysLeft > 0 ? Colors.danger : Colors.success}>
           {String(-inv.daysLeft)}
@@ -87,35 +84,89 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
     }] : [])
   ];
 
-    
+  const handleShare = async () => {
+    if (!salesPerson) return;
+    const billsToPrint = selectedIds.length > 0 ? selectedInvoices : visibleInvoices;
+    const billAmountTotal = billsToPrint.reduce((sum, inv) => sum + inv.outstanding, 0);
+    const intAmountTotal = Math.round(billsToPrint.reduce((sum, inv) => sum + interestCalc.calculateBillInterest(inv.outstanding, inv.totalDueDays ?? 0), 0));
+    const gst = intAmountTotal * 0.05;
+    const tds = Math.round(intAmountTotal * 0.10);
+    const netInterest = intAmountTotal + gst - tds;
+    const totalSelectedOs = billAmountTotal + netInterest;
+
+    await generateOutstandingReportPDF({
+      title: 'Sales Person Wise Sales Outstanding Report',
+      companyName: 'VARNI TEXTILE',
+      companyAddress: 'PLOT NO. 147 TO 151,SUNSHINE IND. ESTATE PART-1, NR. SAYAN SUGAR FACTORY, SAYAN, SURAT, GUJARAT, 394130',
+      partyName: salesPersonName || 'Unknown Sales Person',
+      partyAddress: '',
+      partyBroker: '',
+      periodFrom: filter?.fromDate,
+      periodTo: filter?.toDate,
+      date: new Date().toISOString(),
+      invoices: billsToPrint,
+      showInterest,
+      totals: {
+        totalOs: salesPerson.totalOs,
+        selectedBillAmount: billAmountTotal,
+        interestAmount: intAmountTotal,
+        gst,
+        tds,
+        netInterest,
+        totalSelectedOs
+      },
+      calculateInterest: showInterest ? interestCalc.calculateBillInterest : undefined
+    });
+  };
+
   if (loading) return <LoadingOverlay visible message="Loading..." />;
   if (!salesPerson) return null;
 
   return (
     <View style={styles.container}>
-      <GradientHeader title="Sales O/s (Sales Person Wise)" subtitle={salesPersonName || 'Unknown Sales Person'} onBack={() => navigation.goBack()} />
+      <GradientHeader
+        title="Sales O/s (Sales Person Wise)"
+        subtitle={salesPersonName || 'Unknown Sales Person'}
+        onBack={() => navigation.goBack()}
+        rightElement={null}
+      />
       <CompanyStrip />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        {/* Sales Person Summary */}
-        <Card style={styles.summaryCard}>
-          <View style={styles.brokerHeader}>
-            <View>
-              <Text style={styles.brokerName}>{salesPersonName || 'Unknown Sales Person'}</Text>
-            </View>
+      <View style={styles.ogSummary}>
+        <View style={styles.summaryTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.ogParty} numberOfLines={1}>{salesPersonName || 'Unknown Sales Person'}</Text>
+            {filter?.fromDate || filter?.toDate ? (
+              <Text style={styles.ogLine}>
+                From {toDDMMYY(filter.fromDate)} To {toDDMMYY(filter.toDate)}
+              </Text>
+            ) : null}
           </View>
-          {filter?.fromDate && filter?.toDate && (
-            <Text style={styles.dateRange}>
-              From: {toDDMMYYYY(filter.fromDate)}  To: {toDDMMYYYY(filter.toDate)}
-            </Text>
-          )}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total O/s : <Text style={styles.totalAmount}>{formatCurrency(salesPerson.totalOs)}</Text></Text>
-          </View>
+          <TouchableOpacity
+            onPress={handleShare}
+            activeOpacity={0.8}
+            style={styles.waIcon}
+          >
+            <Icon name="file-pdf-box" size={24} color={Colors.gradientStart} />
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.toggleRow}>
+        <View style={styles.summaryBottomRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.ogTotal}>Total O/s: {formatCurrency(salesPerson.totalOs)}</Text>
+            {selectedInvoices.length > 0 ? (
+              <>
+                <Text style={styles.ogSub}>{selectedInvoices.length} bills selected</Text>
+                <View style={styles.selectedSummaryRow}>
+                  <Text style={styles.selectedLabel}>Selected Bill Total</Text>
+                  <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+          <View style={styles.compactToggles}>
             <View style={styles.toggleItem}>
-              <Text style={styles.toggleLabel}>Only Due</Text>
+              <Text style={styles.toggleLabel}>Due</Text>
               <Switch
                 value={onlyDue}
                 onValueChange={setOnlyDue}
@@ -126,7 +177,7 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
               />
             </View>
             <View style={styles.toggleItem}>
-              <Text style={styles.toggleLabel}>Show Interest</Text>
+              <Text style={styles.toggleLabel}>Interest</Text>
               <Switch
                 value={showInterest}
                 onValueChange={setShowInterest}
@@ -137,13 +188,25 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
               />
             </View>
           </View>
-        </Card>
+        </View>
+      </View>
 
-        {/* Parties and Bills List */}
+      <View style={styles.stickyHeaderWrap}>
+        <GridTableHeader columns={billColumns} />
+      </View>
+
+      <ScrollView
+        style={styles.billScroll}
+        contentContainerStyle={styles.billScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {parties.map((party) => {
           const partyBills = filter?.onlyDue
             ? (party.bills || []).filter(b => b.daysLeft < 0)
             : (party.bills || []);
+
+          const partySelectedInvoices = partyBills.filter(b => selectedIds.includes(b.id));
+          const partySelectedTotal = partySelectedInvoices.reduce((sum, inv) => sum + (inv.outstanding || 0), 0);
 
           if (partyBills.length === 0) return null;
 
@@ -155,23 +218,24 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
               </View>
 
               <View style={styles.tableBleed}>
-                {showInterest && selectedInvoices.length > 0 && (
-            <View style={styles.sectionPad}>
-              <InlineInterestCalculator
-                {...interestCalc}
-                selectedBillAmount={selectedTotal}
-                totalInterest={selectedInvoices.reduce((sum, inv) => sum + interestCalc.calculateBillInterest((inv as any).outstanding ?? (inv as any).balance ?? (inv as any).netBalance ?? 0, inv.totalDueDays ?? 0), 0)}
-              />
-            </View>
-          )}
+                {showInterest && partySelectedInvoices.length > 0 && (
+                  <View style={styles.sectionPad}>
+                    <InlineInterestCalculator
+                      {...interestCalc}
+                      selectedBillAmount={partySelectedTotal}
+                      totalInterest={partySelectedInvoices.reduce((sum, inv) => sum + interestCalc.calculateBillInterest((inv as any).outstanding ?? (inv as any).balance ?? (inv as any).netBalance ?? 0, inv.totalDueDays ?? 0), 0)}
+                    />
+                  </View>
+                )}
 
-          <GridTable
+                <GridTable
                   columns={billColumns}
                   data={partyBills}
                   keyExtractor={(inv, idx) => `${inv.id}-${idx}`}
                   onRowPress={(inv) => toggleBill(inv.id)}
                   rowStyle={(inv) => (selectedIds.includes(inv.id) ? styles.rowSelected : undefined)}
                   emptyText="No bills"
+                  hideHeader
                 />
               </View>
               <View style={styles.partyFooter}>
@@ -189,19 +253,7 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
             </Text>
           </View>
         )}
-
-        {/* Selected total + Interest Calculation */}
-        {selectedInvoices.length > 0 && (
-          <Card style={styles.actionCard}>
-            <View style={styles.selectedRow}>
-              <Text style={styles.selectedLabel}>Selected Bill Total</Text>
-              <Text style={styles.selectedValue}>{formatCurrency(selectedTotal)}</Text>
-            </View>
-                      </Card>
-        )}
       </ScrollView>
-
-      
     </View>
   );
 };
@@ -209,41 +261,39 @@ export const SalesOsSalesPersonDetailScreen: React.FC<Props> = ({ navigation, ro
 const styles = StyleSheet.create({
   sectionPad: { paddingHorizontal: Spacing.md },
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xl },
-  summaryCard: { marginBottom: Spacing.md, padding: Spacing.md },
-  brokerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  brokerName: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  dateRange: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: Spacing.sm },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.md },
-  totalLabel: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },
-  totalAmount: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
+  ogSummary: {
+    backgroundColor: Colors.infoLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  summaryTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  summaryBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 },
+  ogParty: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  waIcon: { padding: 4 },
+  ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 2 },
+  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart },
+  ogSub: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  compactToggles: { flexDirection: 'row', gap: Spacing.md, marginLeft: Spacing.sm },
   toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
-
-  
-  partyContainer: { marginBottom: Spacing.lg },
-  tableBleed: { marginHorizontal: -Spacing.md, backgroundColor: Colors.surface },
-  rowSelected: { backgroundColor: Colors.purple100 },
-  partyHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm, paddingHorizontal: Spacing.xs },
-  partyTitle: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary, textTransform: 'uppercase' },
-
-  partyFooter: { alignItems: 'flex-end', paddingHorizontal: Spacing.xs, marginTop: Spacing.xs },
-  partyFooterText: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  
-  actionCard: { marginTop: Spacing.md, padding: Spacing.md },
-  selectedRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
-  selectedLabel: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary },
-  selectedValue: { fontSize: Typography.fontSizes.lg, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart },
-  interestBtn: {
-    backgroundColor: Colors.gradientStart,
+  switch: { transform: [{ scaleX: 0.70 }, { scaleY: 0.70 }] },
+  selectedSummaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+    justifyContent: 'space-between',
+    marginTop: 4,
+    paddingRight: Spacing.sm,
   },
-  interestBtnText: { color: Colors.textWhite, fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.semiBold },
+  selectedLabel: { fontSize: Typography.fontSizes.sm, color: Colors.textSecondary },
+  selectedValue: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart },
+  stickyHeaderWrap: { backgroundColor: Colors.surface },
+  billScroll: { flex: 1, backgroundColor: Colors.background },
+  billScrollContent: { paddingBottom: Spacing.xl },
+  partyContainer: { marginBottom: Spacing.md },
+  tableBleed: { backgroundColor: Colors.surface },
+  rowSelected: { backgroundColor: Colors.purple100 },
+  partyHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: '#f9f9f9', borderBottomWidth: 1, borderBottomColor: Colors.gray200 },
+  partyTitle: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary, textTransform: 'uppercase' },
+  partyFooter: { alignItems: 'flex-end', paddingHorizontal: Spacing.md, marginTop: Spacing.xs },
+  partyFooterText: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
 });

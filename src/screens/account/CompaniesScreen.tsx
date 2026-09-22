@@ -11,12 +11,13 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../../components/ZIcon';
+import { ZeelCloudLogo } from '../../components/ZeelCloudLogo';
 import { SearchBar } from '../../components/SearchBar';
 import { useCompanyStore } from '../../store/companyStore';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { Company, AppStackParamList } from '../../types';
 
-const TILE_COLORS = ['#2563EB', '#7C3AED', '#0EA5E9', '#10B981', '#F59E0B'];
+const TILE_COLORS = [Colors.primary, Colors.primaryLight, Colors.purple500, Colors.success, Colors.warning];
 
 export const CompaniesScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -64,7 +65,7 @@ export const CompaniesScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <View style={styles.brandRow}>
-          <Icon name="cloud" size={20} color={Colors.primary} />
+          <ZeelCloudLogo size={36} />
           <Text style={styles.brand}>
             ZEEL <Text style={styles.brandLight}>CLOUD</Text>
           </Text>

@@ -11,7 +11,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ZIcon as Icon } from '../../components/ZIcon';
@@ -23,10 +23,11 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { CollapsibleSection } from '../../components/CollapsibleSection';
 import { useCompanyStore } from '../../store/companyStore';
 import { useColorStore } from '../../store/colorStore';
+import { useAuthStore } from '../../store/authStore';
 import { itemsApi, accountsApi, salesOrdersApi } from '../../services/api';
 import { formatCurrency } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
-import type { CompanyTabParamList, Item, AccountParty } from '../../types';
+import type { CompanyTabParamList, SalesOrderStackParamList, Item, AccountParty } from '../../types';
 
 interface DraftItem {
   id: string;
@@ -52,8 +53,6 @@ const todayIso = () => {
 const todayLabel = () =>
   new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-const generateOrderNumber = () =>
-  `SO-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`;
 
 const blankItem = (): DraftItem => ({
   id: `it_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -87,22 +86,31 @@ export const CreateSalesOrderScreen: React.FC = () => {
   const navigation = useNavigation<BottomTabNavigationProp<CompanyTabParamList>>();
   const { selectedCompany, companies } = useCompanyStore();
   const { colors: savedColors, load: loadColors, addColors } = useColorStore();
+  const activeAccountId = useAuthStore((state) => state.activeAccountId);
 
   // Load the persisted distinct colour list once.
   useEffect(() => {
-    loadColors();
-  }, [loadColors]);
+    if (activeAccountId) {
+      loadColors(activeAccountId);
+    }
+  }, [loadColors, activeAccountId]);
+
+  const route = useRoute<RouteProp<SalesOrderStackParamList, 'CreateSalesOrder'>>();
+  const editOrderId = route.params?.orderId;
+  const isEditing = !!editOrderId;
+  const [loadingOrder, setLoadingOrder] = useState(isEditing);
 
   // ── Form state ────────────────────────────────────────────────────────────
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(
     selectedCompany?.recordId ?? null,
   );
   const [selectedCompanyName, setSelectedCompanyName] = useState(selectedCompany?.name ?? '');
-  const [orderNumber, setOrderNumber] = useState(generateOrderNumber);
+  const [orderNumber, setOrderNumber] = useState('Auto-generated');
   const [partyId, setPartyId] = useState<number | null>(null);
   const [partyName, setPartyName] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [discount, setDiscount] = useState('');
+  const [discountType, setDiscountType] = useState<'amount' | 'percentage'>('amount');
+  const [discountValue, setDiscountValue] = useState('');
   const [items, setItems] = useState<DraftItem[]>([blankItem()]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [detailsOpen, setDetailsOpen] = useState(true);
@@ -113,6 +121,52 @@ export const CreateSalesOrderScreen: React.FC = () => {
   const [masterParties, setMasterParties] = useState<AccountParty[]>([]);
   const [loadingMaster, setLoadingMaster] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Load existing order if editing
+  useEffect(() => {
+    if (!editOrderId) return;
+    salesOrdersApi.getById(editOrderId).then((order) => {
+      if (!order) return;
+      if (order.is_synced) {
+        Alert.alert(
+          'Read Only', 
+          'Synced orders cannot be edited.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+        return;
+      }
+      setSelectedCompanyId(order.companyId);
+      // Wait for master data to load? Master data loads when selectedCompanyId changes.
+      setOrderNumber(order.orderNo);
+      setPartyId(order.partyId);
+      setPartyName(order.partyName);
+      setDiscountType(order.discount_type || 'amount');
+      setDiscountValue(order.discount_value ? String(order.discount_value) : '');
+      setRemarks(order.remark || '');
+      
+      const parsedItems: DraftItem[] = order.items.map((it) => {
+        const auto = (it.nos || 0) * (it.cut || 0) || (it.nos || 0);
+        const manual = it.qnty !== auto;
+        return {
+          id: `it_${it.id}_${Math.random().toString(36).slice(2, 6)}`,
+          itemId: it.item_id,
+          itemName: it.item_name,
+          color: it.color || '',
+          nos: String(it.nos || ''),
+          cut: String(it.cut || ''),
+          meter: String(it.qnty || ''),
+          meterManual: manual,
+          rate: String(it.rate || ''),
+          loadingColor: false,
+        };
+      });
+      setItems(parsedItems.length ? parsedItems : [blankItem()]);
+    }).catch(() => {
+      Alert.alert('Error', 'Failed to load order details');
+    }).finally(() => {
+      setLoadingOrder(false);
+    });
+  }, [editOrderId]);
 
   // ── Derived options for dropdowns ─────────────────────────────────────────
   const companyOptions = companies.map((c) => c.name);
@@ -159,7 +213,7 @@ export const CreateSalesOrderScreen: React.FC = () => {
     ])
       .then(([fetchedItems, fetchedParties]) => {
         setMasterItems(fetchedItems);
-        setMasterParties(fetchedParties);
+        setMasterParties(fetchedParties.sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {})
       .finally(() => setLoadingMaster(false));
@@ -167,11 +221,11 @@ export const CreateSalesOrderScreen: React.FC = () => {
 
   // ── Sync selectedCompanyId when company switcher changes ──────────────────
   useEffect(() => {
-    if (selectedCompany) {
+    if (selectedCompany && !isEditing) {
       setSelectedCompanyId(selectedCompany.recordId ?? null);
       setSelectedCompanyName(selectedCompany.name);
     }
-  }, [selectedCompany?.id]);
+  }, [selectedCompany?.id, isEditing]);
 
   // ── Handle item selection — set rate from master, fetch last color ─────────
   const handleItemSelect = useCallback(
@@ -255,12 +309,13 @@ export const CreateSalesOrderScreen: React.FC = () => {
 
     setSaving(true);
     try {
-      const order = await salesOrdersApi.create({
+      const payload = {
         company_id: selectedCompanyId!,
         order_no: orderNumber.trim(),
         date: todayIso(),
         party_id: partyId!,
-        discount: parseFloat(discount) || 0,
+        discount_type: discountType,
+        discount_value: parseFloat(discountValue) || 0,
         remark: remarks.trim() || undefined,
         items: validItems.map((it) => ({
           item_id: it.itemId!,
@@ -270,12 +325,19 @@ export const CreateSalesOrderScreen: React.FC = () => {
           rate: parseFloat(it.rate) || 0,
           meter: qtyOf(it),
         })),
-      });
+      };
+
+      if (isEditing) {
+        await salesOrdersApi.update(editOrderId, payload);
+      } else {
+        await salesOrdersApi.create(payload);
+      }
+      
       // Bind every colour used in this order into the persisted distinct list.
       addColors(validItems.map((it) => it.color).filter(Boolean));
       Alert.alert(
-        'Order Created Successfully ✓',
-        `Sales order ${order.orderNo} for ${partyName} (${formatCurrency(order.totalAmount)}) has been created.`,
+        `Order ${isEditing ? 'Updated' : 'Created'} Successfully ✓`,
+        `Sales order ${payload.order_no} for ${partyName} has been ${isEditing ? 'updated' : 'created'}.`,
         [{ text: 'OK', onPress: () => navigation.goBack() }],
       );
     } catch (err) {
@@ -287,26 +349,34 @@ export const CreateSalesOrderScreen: React.FC = () => {
   };
 
   const subtotal = items.reduce((sum, it) => sum + amountOf(it), 0);
-  const total = Math.max(0, subtotal - (parseFloat(discount) || 0));
+  
+  const parsedDiscountValue = parseFloat(discountValue) || 0;
+  const calculatedDiscountAmount = discountType === 'percentage' 
+    ? parseFloat((subtotal * (parsedDiscountValue / 100)).toFixed(2))
+    : parseFloat(parsedDiscountValue.toFixed(2));
+    
+  const total = Math.max(0, subtotal - calculatedDiscountAmount);
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Dashboard')} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Sales Order</Text>
+        <Text style={styles.headerTitle}>{isEditing ? 'Edit Sales Order' : 'Create Sales Order'}</Text>
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Reports')} activeOpacity={0.7}>
           <Icon name="file-document-outline" size={20} color={Colors.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Master-data loading banner */}
-      {loadingMaster ? (
+      {/* Master-data / Order loading banner */}
+      {loadingMaster || loadingOrder ? (
         <View style={styles.loadingBanner}>
           <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.loadingBannerText}>Loading items & parties…</Text>
+          <Text style={styles.loadingBannerText}>
+            {loadingOrder ? 'Loading order details…' : 'Loading items & parties…'}
+          </Text>
         </View>
       ) : null}
 
@@ -342,12 +412,13 @@ export const CreateSalesOrderScreen: React.FC = () => {
             <View style={styles.grid2}>
               <View style={styles.col}>
                 <InputField
-                  label="Order Number *"
+                  label="Order Number"
                   value={orderNumber}
                   onChangeText={setOrderNumber}
                   placeholder="SO-0000"
                   leftIcon="pound"
                   error={errors.orderNumber}
+                  editable={false}
                 />
               </View>
               <View style={styles.col}>
@@ -446,7 +517,7 @@ export const CreateSalesOrderScreen: React.FC = () => {
                       <ActivityIndicator size="small" color={Colors.primary} />
                       <Text style={styles.suggestHint}>Fetching last used color…</Text>
                     </View>
-                  ) : it.itemId && it.color ? (
+                  ) : (!!it.itemId && !!it.color) ? (
                     <Text style={styles.suggestHint}>✨ Pre-filled from last order</Text>
                   ) : null}
 
@@ -559,9 +630,50 @@ export const CreateSalesOrderScreen: React.FC = () => {
               <Text style={styles.summaryValue}>{formatCurrency(subtotal)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Discount</Text>
+              <View>
+                <Text style={styles.summaryLabel}>Discount</Text>
+                <View style={styles.toggleContainer}>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, discountType === 'percentage' && styles.toggleBtnActive]}
+                    onPress={() => {
+                      if (discountType !== 'percentage') {
+                        setDiscountType('percentage');
+                        setDiscountValue('');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.toggleText, discountType === 'percentage' && styles.toggleTextActive]}>%</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, discountType === 'amount' && styles.toggleBtnActive]}
+                    onPress={() => {
+                      if (discountType !== 'amount') {
+                        setDiscountType('amount');
+                        setDiscountValue('');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.toggleText, discountType === 'amount' && styles.toggleTextActive]}>₹</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
               <View style={styles.discountInput}>
-                <InputField label="" value={discount} onChangeText={setDiscount} placeholder="0" keyboardType="numeric" />
+                <InputField 
+                  label="" 
+                  value={discountValue} 
+                  onChangeText={(val) => {
+                    if (discountType === 'percentage' && parseFloat(val) > 100) {
+                      Alert.alert('Invalid', 'Percentage cannot exceed 100%');
+                      return;
+                    }
+                    setDiscountValue(val);
+                  }} 
+                  placeholder="0" 
+                  keyboardType="numeric" 
+                  leftIcon={discountType === 'percentage' ? 'percent-outline' : 'currency-inr'}
+                />
               </View>
             </View>
             <View style={styles.totalRow}>
@@ -580,10 +692,10 @@ export const CreateSalesOrderScreen: React.FC = () => {
             </TouchableOpacity>
             <View style={styles.saveWrap}>
               <PrimaryButton
-                title={saving ? 'Saving…' : 'Save Sales Order'}
+                title={saving ? 'Saving…' : (isEditing ? 'Update Sales Order' : 'Save Sales Order')}
                 icon={saving ? undefined : 'content-save-outline'}
                 onPress={handleSave}
-                disabled={saving}
+                disabled={saving || loadingOrder || loadingMaster}
               />
             </View>
           </View>
@@ -804,4 +916,26 @@ const styles = StyleSheet.create({
   },
   cancelText: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },
   saveWrap: { flex: 1 },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.gray100,
+    borderRadius: BorderRadius.md,
+    padding: 2,
+    marginTop: 6,
+  },
+  toggleBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.sm,
+  },
+  toggleBtnActive: {
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  toggleText: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.semiBold, color: Colors.textSecondary },
+  toggleTextActive: { color: Colors.primary },
 });

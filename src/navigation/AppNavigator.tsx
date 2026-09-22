@@ -8,7 +8,8 @@ import { SalesRegisterStack } from './stacks/SalesRegisterStack';
 import { PurchaseRegisterStack } from './stacks/PurchaseRegisterStack';
 import { GpRegisterStack } from './stacks/GpRegisterStack';
 import { GpOsStack } from './stacks/GpOsStack';
-import { NonIssueStack } from './stacks/NonIssueStack';
+import { StockStack } from './stacks/StockStack';
+import { MachineWiseStack } from './stacks/MachineWiseStack';
 import { BankCashLedgerScreen } from '../screens/ledger/BankCashLedgerScreen';
 import { PartyLedgerScreen } from '../screens/ledger/PartyLedgerScreen';
 import { AboutScreen } from '../screens/AboutScreen';
@@ -29,7 +30,8 @@ export const AppNavigator: React.FC = () => (
     <Stack.Screen name="PurchaseRegisterStack" component={PurchaseRegisterStack} />
     <Stack.Screen name="GpRegisterStack" component={GpRegisterStack} />
     <Stack.Screen name="GpOsStack" component={GpOsStack} />
-    <Stack.Screen name="NonIssueStack" component={NonIssueStack} />
+    <Stack.Screen name="StockStack" component={StockStack} />
+    <Stack.Screen name="MachineWiseStack" component={MachineWiseStack} />
     <Stack.Screen name="BankCashLedger" component={BankCashLedgerScreen} />
     <Stack.Screen name="PartyLedger" component={PartyLedgerScreen} />
     <Stack.Screen name="About" component={AboutScreen} />

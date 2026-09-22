@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { dateToDDMMYYYY } from '../utils/formatDate';
+import { registerStoreReset } from './storeRegistry';
 
 // Global "last sync" clock. markSynced() is called from the central apiFetch on
 // every successful API response, so `lastSynced` genuinely reflects the last time
@@ -12,12 +13,19 @@ import { dateToDDMMYYYY } from '../utils/formatDate';
 interface SyncState {
   lastSynced: string;
   markSynced: () => void;
+  reset: () => void;
 }
 
-export const useSyncStore = create<SyncState>((set, get) => ({
-  lastSynced: '',
+export const useSyncStore = create<SyncState>((set, get) => {
+  const reset = () => set({ lastSynced: '' });
+  registerStoreReset(reset);
+
+  return {
+    lastSynced: '',
   markSynced: () => {
     const stamp = dateToDDMMYYYY(new Date(), true);
     if (stamp !== get().lastSynced) set({ lastSynced: stamp });
   },
-}));
+  reset,
+  };
+});

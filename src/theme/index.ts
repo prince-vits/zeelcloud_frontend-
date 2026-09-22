@@ -1,69 +1,68 @@
 export const Colors = {
-  // Primary (ZeelCloud blue)
-  primary: '#2563EB',
-  primaryDark: '#1D4ED8',
-  primaryLight: '#DBEAFE',
+  // Brand trio (logo) — use each deliberately, not as a blend
+  // #424096 dark indigo | #9C8DCE light indigo | #FFFFFF white
+  primary: '#424096',
+  primaryDark: '#2D2B6B',
+  primaryLight: '#9C8DCE',
 
-  // Primary gradient (kept for components that use it; now blue)
-  gradientStart: '#2563EB',
-  gradientEnd: '#1D4ED8',
+  // Legacy aliases (solid fills only — do not blend these in gradients)
+  gradientStart: '#424096',
+  gradientEnd: '#9C8DCE',
 
-  // Backgrounds
-  background: '#F4F6FA',
+  // Canvas: soft lavender wash so light indigo shows without darkening the app
+  background: '#EEEAF6',
   surface: '#FFFFFF',
 
   // Text
-  textPrimary: '#1E293B',
-  textSecondary: '#64748B',
-  textMuted: '#94A3B8',
+  textPrimary: '#2A2758',
+  textSecondary: '#6B648F',
+  textMuted: '#9A93B5',
   textWhite: '#FFFFFF',
 
-  // Borders
-  border: '#E5E9F0',
-  borderFocus: '#2563EB',
+  // Borders — indigo-tinted neutrals
+  border: '#D8D2E8',
+  borderFocus: '#424096',
 
-  // Status
+  // Status (unchanged semantics)
   success: '#10B981',
   successLight: '#D1FAE5',
   danger: '#EF4444',
   dangerLight: '#FEE2E2',
   warning: '#F59E0B',
   warningLight: '#FEF3C7',
-  info: '#2563EB',
-  infoLight: '#DBEAFE',
+  info: '#424096',
+  infoLight: '#E8E3F4',
 
   // Neutral
-  neutral: '#64748B',
-  neutralLight: '#F1F5F9',
+  neutral: '#6B648F',
+  neutralLight: '#F3F0FA',
 
-  // Drawer
-  drawerBg: '#2563EB',
+  // Drawer / chrome
+  drawerBg: '#424096',
 
-  // Card shadow
   shadow: '#000000',
 
-  // Accent shades (repointed from purple → blue so existing accents follow the new brand)
-  purple100: '#DBEAFE',
-  purple200: '#BFDBFE',
-  purple500: '#3B82F6',
-  purple600: '#2563EB',
-  purple700: '#1D4ED8',
+  // Accent scale (monochrome indigo)
+  purple100: '#E8E3F4',
+  purple200: '#D4CBE8',
+  purple500: '#9C8DCE',
+  purple600: '#424096',
+  purple700: '#2D2B6B',
 
-  // Blue shades
-  blue500: '#3B82F6',
-  blue600: '#2563EB',
+  blue500: '#9C8DCE',
+  blue600: '#424096',
 
-  // Gray shades
-  gray50: '#F8FAFC',
-  gray100: '#F1F5F9',
-  gray200: '#E2E8F0',
-  gray300: '#CBD5E1',
-  gray400: '#94A3B8',
-  gray500: '#64748B',
-  gray600: '#475569',
-  gray700: '#334155',
-  gray800: '#1E293B',
-  gray900: '#0F172A',
+  // Gray scale (slightly cool-indigo so UI stays on-brand)
+  gray50: '#F7F5FB',
+  gray100: '#F0ECF7',
+  gray200: '#E2DCEC',
+  gray300: '#CBC3DB',
+  gray400: '#9A93B5',
+  gray500: '#6B648F',
+  gray600: '#4F4A72',
+  gray700: '#3A3660',
+  gray800: '#2A2758',
+  gray900: '#1A1838',
 };
 
 export const Typography = {
@@ -112,21 +111,21 @@ export const BorderRadius = {
 
 export const Shadows = {
   card: {
-    shadowColor: '#000',
+    shadowColor: '#424096',
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   sm: {
-    shadowColor: '#000',
+    shadowColor: '#424096',
     shadowOpacity: 0.05,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
   lg: {
-    shadowColor: '#000',
+    shadowColor: '#424096',
     shadowOpacity: 0.12,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },

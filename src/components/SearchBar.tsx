@@ -37,7 +37,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       </View>
       {onFilter ? (
         <TouchableOpacity style={styles.filterButton} onPress={onFilter} activeOpacity={0.8}>
-          <Icon name="tune-variant" size={20} color={Colors.gradientStart} />
+          <Icon name="tune-variant" size={20} color={Colors.textWhite} />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -54,7 +54,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.gray100,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     minHeight: 44,
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.purple100,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },

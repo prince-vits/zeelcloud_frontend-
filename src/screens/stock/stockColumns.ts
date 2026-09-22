@@ -9,13 +9,14 @@ export const yarnColumns: StockColumn[] = [
   { key: 'cheese', label: 'Cheese', width: 80 },
 ];
 
-// Yarn "Quality + Lot No. + Grade Wise" variant — same metrics plus the Lot No.
+// Yarn "Quality + Lot No. + Grade Wise" — OG column order: Item | Lot | Grade | Crtn | Net Wt | Cheese
 export const yarnLotGradeColumns: StockColumn[] = [
-  { key: 'name', label: 'Item Name', width: 170 },
-  { key: 'lotNo', label: 'Lot No', width: 90 },
-  { key: 'crtn', label: 'Crtn', width: 70 },
-  { key: 'netWeight', label: 'Net Weight', width: 100 },
-  { key: 'cheese', label: 'Cheese', width: 80 },
+  { key: 'name', label: 'Item Name', width: 130 },
+  { key: 'lotNo', label: 'Lot No', width: 68 },
+  { key: 'grade', label: 'Grade', width: 48 },
+  { key: 'crtn', label: 'Crtn', width: 52 },
+  { key: 'netWeight', label: 'Net Weight', width: 82 },
+  { key: 'cheese', label: 'Cheese', width: 62 },
 ];
 
 export const grayColumns: StockColumn[] = [

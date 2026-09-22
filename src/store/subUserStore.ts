@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import { authApi } from '../services/api';
 import type { SubUser } from '../types';
+import { registerStoreReset } from './storeRegistry';
 
 const assertAdminToken = () => {
   const { user, token } = useAuthStore.getState();
@@ -26,6 +27,7 @@ interface SubUserState {
     last_name?: string;
     email?: string;
     company_name?: string;
+    is_sales_order_creation_allowed?: boolean;
   }) => Promise<SubUser>;
   updateSubUserViaAPI: (
     id: string,
@@ -38,14 +40,20 @@ interface SubUserState {
       company_name?: string;
       contact_no?: string;
       form_ids?: number[];
+      is_sales_order_creation_allowed?: boolean;
     },
   ) => Promise<SubUser>;
   deactivateSubUserViaAPI: (id: string) => Promise<SubUser>;
   getById: (id: string) => SubUser | undefined;
+  reset: () => void;
 }
 
-export const useSubUserStore = create<SubUserState>((set, get) => ({
-  subUsers: [],
+export const useSubUserStore = create<SubUserState>((set, get) => {
+  const reset = () => set({ subUsers: [], isLoading: false, loaded: false });
+  registerStoreReset(reset);
+
+  return {
+    subUsers: [],
   isLoading: false,
   loaded: false,
 
@@ -114,4 +122,6 @@ export const useSubUserStore = create<SubUserState>((set, get) => ({
   },
 
   getById: (id) => get().subUsers.find((u) => u.id === id),
-}));
+  reset,
+  };
+});

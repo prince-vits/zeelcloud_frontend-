@@ -6,12 +6,17 @@ import { MoreScreen } from '../screens/company/MoreScreen';
 import { SalesOrderStack } from './stacks/SalesOrderStack';
 import { StockStack } from './stacks/StockStack';
 import { useBaseTabScreenOptions, tabIcon } from './tabConfig';
+import { useAuthStore } from '../store/authStore';
 import type { CompanyTabParamList } from '../types';
 
 const Tab = createBottomTabNavigator<CompanyTabParamList>();
 
 export const CompanyTabs: React.FC = () => {
   const screenOptions = useBaseTabScreenOptions();
+  const canAccessSalesOrders = useAuthStore(
+    (s) => s.user?.isSalesOrderCreationAllowed === true,
+  );
+
   return (
   <Tab.Navigator screenOptions={screenOptions}>
     <Tab.Screen
@@ -29,11 +34,13 @@ export const CompanyTabs: React.FC = () => {
       component={StockStack}
       options={{ tabBarLabel: 'Stocks', tabBarIcon: tabIcon('package-variant') }}
     />
-    <Tab.Screen
-      name="SalesOrders"
-      component={SalesOrderStack}
-      options={{ tabBarLabel: 'Sales Orders', tabBarIcon: tabIcon('file-document-outline') }}
-    />
+    {canAccessSalesOrders ? (
+      <Tab.Screen
+        name="SalesOrders"
+        component={SalesOrderStack}
+        options={{ tabBarLabel: 'Sales Orders', tabBarIcon: tabIcon('file-document-outline') }}
+      />
+    ) : null}
     <Tab.Screen
       name="More"
       component={MoreScreen}

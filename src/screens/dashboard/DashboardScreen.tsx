@@ -9,9 +9,10 @@ import { CompanySwitcher } from '../../components/CompanySwitcher';
 import { LastSyncBadge } from '../../components/LastSyncBadge';
 import { BookmarkEditModal } from '../../components/BookmarkEditModal';
 import { useBookmarkStore } from '../../store/bookmarkStore';
-import { APP_MODULES } from '../../data/modules';
+import { APP_MODULES, getAuthorizedModules } from '../../data/modules';
 import { dashboardApi, companyApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
+import { useAuthStore } from '../../store/authStore';
 import { formatCurrency, formatPercent } from '../../utils/currency';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
 import type { AppStackParamList, BankAccount } from '../../types';
@@ -25,15 +26,12 @@ interface OsSummary {
 export const DashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const { bookmarks, loadBookmarks } = useBookmarkStore();
+  const { user } = useAuthStore();
+  const { bookmarks } = useBookmarkStore();
   const { selectedCompany } = useCompanyStore();
   const [osSummary, setOsSummary] = useState<OsSummary>({ totalPurchase: 0, totalSales: 0, totalGp: 0 });
   const [editingBookmarks, setEditingBookmarks] = useState(false);
   const [selectedBar, setSelectedBar] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadBookmarks();
-  }, [loadBookmarks]);
 
   useEffect(() => {
     if (selectedCompany?.recordId) {
@@ -43,9 +41,10 @@ export const DashboardScreen: React.FC = () => {
     }
   }, [selectedCompany?.recordId]);
 
-  // Resolve saved bookmark keys into module definitions (in saved order).
+  // Resolve saved bookmark keys into module definitions (in saved order), filtered by auth.
+  const authorizedModules = getAuthorizedModules(user);
   const bookmarkedModules = bookmarks
-    .map((k) => APP_MODULES.find((m) => m.key === k))
+    .map((k) => authorizedModules.find((m) => m.key === k))
     .filter((m): m is (typeof APP_MODULES)[number] => Boolean(m));
 
   const accounts = selectedCompany?.banks || [];
@@ -53,9 +52,9 @@ export const DashboardScreen: React.FC = () => {
 
   // Build chart bars from real OS totals
   const osBars = [
-    { label: 'Purchase', value: osSummary.totalPurchase, color: '#7C3AED' },
-    { label: 'Sales', value: osSummary.totalSales, color: '#2563EB' },
-    { label: 'GP', value: osSummary.totalGp, color: '#10B981' },
+    { label: 'Purchase', value: osSummary.totalPurchase, color: Colors.primaryLight },
+    { label: 'Sales', value: osSummary.totalSales, color: Colors.primary },
+    { label: 'GP', value: osSummary.totalGp, color: Colors.success },
 
   ];
   const maxVal = Math.max(1, ...osBars.map((b) => b.value));
@@ -124,6 +123,11 @@ export const DashboardScreen: React.FC = () => {
                   <Icon name={b.icon} size={22} color={b.color} />
                 </View>
                 <Text style={styles.bookmarkLabel} numberOfLines={2}>{b.label}</Text>
+                {b.comingSoon ? (
+                  <View style={styles.comingSoonBadge}>
+                    <Text style={styles.comingSoonText}>Soon</Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             ))}
           </View>
@@ -214,11 +218,13 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    borderTopWidth: 3,
+    borderTopColor: Colors.primaryLight,
   },
   title: {
     fontSize: Typography.fontSizes.xl,
     fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
+    color: Colors.primary,
     marginTop: Spacing.md,
   },
   content: { padding: Spacing.md },
@@ -298,6 +304,19 @@ const styles = StyleSheet.create({
   },
   bookmarkIcon: { width: 40, height: 40, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   bookmarkLabel: { flex: 1, fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },
+  comingSoonBadge: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  comingSoonText: {
+    fontSize: 9,
+    fontWeight: Typography.fontWeights.bold,
+    color: '#B45309',
+  },
 
   periodPill: {
     flexDirection: 'row',

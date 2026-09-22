@@ -1,10 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Switch, StyleSheet, ViewStyle } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Switch,
+  StyleSheet,
+  ViewStyle,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientHeader } from '../../components/GradientHeader';
 import { CompanyStrip } from '../../components/CompanyStrip';
 import { SearchBar } from '../../components/SearchBar';
 import { EmptyState } from '../../components/EmptyState';
-import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { TableSkeleton } from '../../components/TableSkeleton';
 import { GridTable, GridColumn, GridText } from '../../components/GridTable';
 import { stockApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
@@ -29,6 +38,9 @@ export interface StockReportViewProps {
   onBack: () => void;
   // Optional per-row emoji shown before the item name (e.g. yarn fiber type).
   rowEmoji?: (item: StockItem) => string;
+  // second arg mirrors the list's Common Company toggle so detail fetch
+  // uses the same company scope (omit company= when aggregating all).
+  onRowPress?: (item: StockItem, commonCompany: boolean) => void;
 }
 
 const reportTypeLabel = (t: StockReportType) =>
@@ -45,9 +57,37 @@ const formatValue = (item: StockItem, col: StockColumn): string => {
   return String(raw);
 };
 
-// Column flex weights shared by the grid and the pinned totals footer.
-const nameFlex = 2.2;
-const metricFlex = (col: StockColumn) => Math.max(0.7, col.width / 100);
+// Wide numeric columns need more room so footer totals (e.g. 42,48,015.xx) don't clip.
+const WIDE_KEYS = new Set(['meter', 'weight', 'netWeight', 'cheese']);
+
+// Text columns — no footer sum (OG only totals Crtn / Net Weight / Cheese).
+const NON_SUMMABLE_KEYS = new Set(['lotNo', 'grade', 'name']);
+
+const nameFlexFor = (metricCount: number, isLotGrade: boolean, isGray: boolean) => {
+  if (isLotGrade) return 1.15;
+  if (isGray) return 1.5; // 5 metric cols — modest name bump, not oversized
+  if (metricCount >= 5) return 1.35;
+  if (metricCount >= 4) return 1.55;
+  return 1.85; // Yarn / Beam
+};
+
+const metricFlexFor = (col: StockColumn, isLotGrade: boolean, isGray: boolean) => {
+  const key = String(col.key);
+  if (isLotGrade) {
+    if (key === 'netWeight') return 0.95;
+    if (key === 'lotNo') return 0.72;
+    if (key === 'grade') return 0.58;
+    if (key === 'cheese' || key === 'crtn') return 0.62;
+  }
+  if (isGray) {
+    if (key === 'meter' || key === 'weight') return 1.0;
+    if (key === 'avgWt') return 0.68;
+    if (key === 'taka' || key === 'pallu') return 0.58;
+  }
+  if (WIDE_KEYS.has(key)) return 1.2;
+  if (key === 'avgWt' || key === 'lotNo') return 0.9;
+  return 0.72; // taka, beam, crtn, pallu
+};
 
 // OG .NET stock/non-issue report page, section for section:
 //   ① company strip (name + Last Synced)   ② search + Common Company toggle
@@ -64,8 +104,11 @@ export const StockReportView: React.FC<StockReportViewProps> = ({
   emptyIcon,
   onBack,
   rowEmoji,
+  onRowPress,
 }) => {
   const { selectedCompany } = useCompanyStore();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -85,16 +128,42 @@ export const StockReportView: React.FC<StockReportViewProps> = ({
 
   const lowerSearch = search.toLowerCase();
   const filtered = items.filter(
-    (i) => i.name.toLowerCase().includes(lowerSearch) || i.quality.toLowerCase().includes(lowerSearch),
+    (i) =>
+      i.name.toLowerCase().includes(lowerSearch) ||
+      i.quality.toLowerCase().includes(lowerSearch) ||
+      (i.lotNo ?? '').toLowerCase().includes(lowerSearch) ||
+      (i.grade ?? '').toLowerCase().includes(lowerSearch),
   );
 
+  const isLotGrade = reportType === 'qualityLotGrade';
+  const isGray = stockSource === 'gray';
+  const isDenseName = isLotGrade || isGray;
   const metaColumns = columns.filter((c) => c.key !== 'name');
+  const nameFlex = nameFlexFor(metaColumns.length, isLotGrade, isGray);
+  const metricFlex = (col: StockColumn) => metricFlexFor(col, isLotGrade, isGray);
+
+  // Dense grids (gray / lot-grade) use smaller type; names scale down instead of ugly mid-word breaks.
+  const footerFont = isDenseName
+    ? width < 360
+      ? 7
+      : 8
+    : metaColumns.length >= 5
+      ? width < 360
+        ? 8
+        : 9
+      : width < 360
+        ? 9
+        : 10;
+  const cellFont = isDenseName ? (width < 360 ? 8 : 9) : width < 360 ? 10 : 11;
+  const nameFont = isDenseName ? (width < 360 ? 8 : 9) : cellFont;
 
   // OG footer: bold column totals over the visible rows.
   const totals = useMemo(() => {
     const sums: Record<string, number> = {};
     for (const col of metaColumns) {
-      sums[String(col.key)] = filtered.reduce((sum, item) => {
+      const key = String(col.key);
+      if (NON_SUMMABLE_KEYS.has(key)) continue;
+      sums[key] = filtered.reduce((sum, item) => {
         const v = item[col.key];
         return sum + (typeof v === 'number' ? v : 0);
       }, 0);
@@ -110,23 +179,49 @@ export const StockReportView: React.FC<StockReportViewProps> = ({
           label: col.label,
           flex: nameFlex,
           align: 'left' as const,
-          render: (item: StockItem) => (
-            <GridText bold>{`${rowEmoji ? `${rowEmoji(item)} ` : ''}${item.name}`}</GridText>
-          ),
+          render: (item: StockItem) =>
+            isDenseName ? (
+              <GridText
+                bold
+                fontSize={nameFont}
+                numberOfLines={2}
+                align="left"
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
+              >
+                {item.name}
+              </GridText>
+            ) : (
+              <GridText bold fontSize={cellFont} numberOfLines={2} align="left">
+                {`${rowEmoji ? `${rowEmoji(item)} ` : ''}${item.name}`}
+              </GridText>
+            ),
         }
       : {
           key: String(col.key),
           label: col.label,
           flex: metricFlex(col),
-          render: (item: StockItem) => <GridText>{formatValue(item, col)}</GridText>,
+          align: col.key === 'grade' || col.key === 'lotNo' ? ('left' as const) : ('center' as const),
+          render: (item: StockItem) => (
+            <GridText
+              fontSize={cellFont}
+              numberOfLines={col.key === 'grade' ? 2 : 1}
+              align={col.key === 'grade' || col.key === 'lotNo' ? 'left' : 'center'}
+              adjustsFontSizeToFit={col.key === 'lotNo'}
+              minimumFontScale={0.7}
+            >
+              {formatValue(item, col)}
+            </GridText>
+          ),
         },
   );
 
   const footerCell = (flex: number, extra?: ViewStyle): ViewStyle => ({
     flex,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
     ...extra,
   });
 
@@ -154,30 +249,60 @@ export const StockReportView: React.FC<StockReportViewProps> = ({
 
       {/* ③+④ header strip + data rows */}
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-        {!loading && filtered.length === 0 ? (
+        {loading && filtered.length === 0 ? (
+          <TableSkeleton columns={gridColumns as any} />
+        ) : !loading && filtered.length === 0 ? (
           <EmptyState icon={emptyIcon} title={`No ${title.toLowerCase()} found`} />
         ) : (
-          <GridTable columns={gridColumns} data={filtered} keyExtractor={(item, idx) => `${item.id}-${idx}`} />
+          <GridTable
+            columns={gridColumns}
+            data={filtered}
+            keyExtractor={(item, idx) => `${item.id}-${idx}`}
+            alignRowsTop
+            onRowPress={onRowPress ? (item) => onRowPress(item, commonCompany) : undefined}
+          />
         )}
       </ScrollView>
 
-      {/* ⑤ OG totals footer — bold sums, pinned at the bottom */}
+      {/* ⑤ Totals footer — safe-area padded, wrap/shrink so values never clip */}
       {filtered.length > 0 ? (
-        <View style={styles.totalsRow}>
+        <View
+          style={[
+            styles.totalsRow,
+            {
+              paddingBottom: Math.max(insets.bottom, 8),
+              paddingHorizontal: 4,
+            },
+          ]}
+        >
           <View style={footerCell(nameFlex, { alignItems: 'flex-start' })}>
-            <Text style={styles.totalsLabel}>Total ({filtered.length})</Text>
+            <Text
+              style={[styles.totalsLabel, { fontSize: footerFont }]}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {`Total (${filtered.length})`}
+            </Text>
           </View>
-          {metaColumns.map((col) => (
-            <View key={String(col.key)} style={footerCell(metricFlex(col))}>
-              <Text style={styles.totalsValue} numberOfLines={1}>
-                {formatNumber(totals[String(col.key)] ?? 0, col.decimals)}
-              </Text>
-            </View>
-          ))}
+          {metaColumns.map((col) => {
+            const key = String(col.key);
+            const summable = !NON_SUMMABLE_KEYS.has(key);
+            return (
+              <View key={key} style={footerCell(metricFlex(col))}>
+                <Text
+                  style={[styles.totalsValue, { fontSize: footerFont }]}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.65}
+                >
+                  {summable ? formatNumber(totals[key] ?? 0, col.decimals) : ''}
+                </Text>
+              </View>
+            );
+          })}
         </View>
       ) : null}
-
-      <LoadingOverlay visible={loading} message="Loading stock..." />
     </View>
   );
 };
@@ -185,7 +310,7 @@ export const StockReportView: React.FC<StockReportViewProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   toolbox: {
-    backgroundColor: '#E7F0FE', // OG Blue400Accent-style toolbox frame
+    backgroundColor: Colors.infoLight, // Brand indigo wash for toolbox frame
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
     paddingBottom: 2,
@@ -206,20 +331,23 @@ const styles = StyleSheet.create({
   totalsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 40,
-    paddingVertical: 6,
+    minHeight: 44,
+    paddingTop: 8,
+    width: '100%',
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   totalsLabel: {
-    fontSize: 11,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.textPrimary,
+    textAlign: 'left',
+    width: '100%',
   },
   totalsValue: {
-    fontSize: 11,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.textPrimary,
+    textAlign: 'center',
+    width: '100%',
   },
 });

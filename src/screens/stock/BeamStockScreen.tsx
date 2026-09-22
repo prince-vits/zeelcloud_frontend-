@@ -19,5 +19,14 @@ export const BeamStockScreen: React.FC<Props> = ({ navigation, route }) => (
     searchPlaceholder="Search beams..."
     emptyIcon="layers-outline"
     onBack={() => navigation.goBack()}
+    onRowPress={(item, commonCompany) =>
+      navigation.navigate('StockItemDetail', {
+        itemName: item.name,
+        lotNo: item.lotNo !== '-' ? item.lotNo : undefined,
+        category: 'beam',
+        reportType: route.params.reportType,
+        commonCompany,
+      })
+    }
   />
 );

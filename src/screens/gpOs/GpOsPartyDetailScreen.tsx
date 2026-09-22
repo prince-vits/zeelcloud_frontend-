@@ -15,6 +15,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { GpOsStackParamList, GpOsParty, GpOsInvoice } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { toDDMMYY } from '../../utils/formatDate';
+import { generateOutstandingReportPDF } from '../../utils/pdfGenerator';
 
 type Props = {
   navigation: NativeStackNavigationProp<GpOsStackParamList, 'GpOsPartyDetail'>;
@@ -82,7 +83,7 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
   // OG .NET grid (GPOsPartyDetailPage): same fit-to-width column layout.
   const billColumns: GridColumn<GpOsInvoice>[] = [
     {
-      key: 'sel', label: '', width: 30,
+      key: 'sel', label: '', width: 24,
       render: (inv) => (
         <Icon
           name={selectedIds.includes(inv.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
@@ -91,13 +92,13 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
         />
       ),
     },
-        { key: 'bookCode', label: 'Book', width: 35 },
-    { key: 'billNo', label: 'Bill No', flex: 1, render: (inv) => <GridText bold>{inv.billNo}</GridText> },
+    { key: 'bookCode', label: 'Book', width: 32, align: 'left' },
+    { key: 'billNo', label: 'Bill No', flex: showInterest ? 0.65 : 0.8, align: 'left', render: (inv) => <GridText align="left" bold fontSize={showInterest ? 10 : undefined}>{inv.billNo}</GridText> },
     { key: 'billDate', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.billDate)}</GridText> },
-    { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays)}</GridText> },
-    { key: 'totalDueDays', label: 'Total Due', width: 42, render: (inv) => <GridText>{String(inv.totalDueDays)}</GridText> },
+    { key: 'termDays', label: 'Terms', width: 35, align: 'right', render: (inv) => <GridText align="right">{String(inv.termDays)}</GridText> },
+    { key: 'totalDueDays', label: 'Total Due', width: 32, render: (inv) => <GridText fontSize={showInterest ? 10 : undefined}>{String(inv.totalDueDays)}</GridText> },
     {
-      key: 'dueDays', label: 'Due Days', width: 42,
+      key: 'dueDays', label: 'Due Days', width: 40,
       render: (inv) => (
         <GridText bold color={inv.dueDays > 0 ? Colors.danger : Colors.success}>
           {String(inv.dueDays)}
@@ -109,22 +110,42 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
       key: 'interest',
       label: 'Interest',
       flex: 1.3,
-      render: (inv: any) => <GridText>{`₹ ${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
+      render: (inv: any) => <GridText>{`₹${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
     }] : [])
   ];
 
   const handleShare = async () => {
     if (!party) return;
-    const lines = visibleInvoices
-      .map((inv) => `${inv.billNo} | ${inv.billDate} | ${formatCurrency(inv.balance)}`)
-      .join('\n');
-    await Share.share({
-      message:
-        `GP Outstanding Report\n` +
-        `Party: ${party.name}\n` +
-        `Address: ${party.address}\n` +
-        `Total O/S: ${formatCurrency(party.totalOs)}\n\n` +
-        `Bill Details:\n${lines}`,
+    const billsToPrint = selectedIds.length > 0 ? selectedInvoices : visibleInvoices;
+    const billAmountTotal = billsToPrint.reduce((sum, inv) => sum + (inv.balance ?? 0), 0);
+    const intAmountTotal = Math.round(billsToPrint.reduce((sum, inv) => sum + interestCalc.calculateBillInterest(inv.balance ?? 0, inv.totalDueDays ?? 0), 0));
+    const gst = intAmountTotal * 0.05;
+    const tds = Math.round(intAmountTotal * 0.10);
+    const netInterest = intAmountTotal + gst - tds;
+    const totalSelectedOs = billAmountTotal + netInterest;
+
+    await generateOutstandingReportPDF({
+      title: 'Party Wise GP Outstanding Report',
+      companyName: 'VARNI TEXTILE',
+      companyAddress: 'PLOT NO. 147 TO 151,SUNSHINE IND. ESTATE PART-1, NR. SAYAN SUGAR FACTORY, SAYAN, SURAT, GUJARAT, 394130',
+      partyName: party.name,
+      partyAddress: party.address || '',
+      partyBroker: brokerName || 'DIRECT',
+      periodFrom: filter?.fromDate,
+      periodTo: filter?.toDate,
+      date: new Date().toISOString(),
+      invoices: billsToPrint,
+      showInterest,
+      totals: {
+        totalOs: party.totalOs,
+        selectedBillAmount: billAmountTotal,
+        interestAmount: intAmountTotal,
+        gst,
+        tds,
+        netInterest,
+        totalSelectedOs
+      },
+      calculateInterest: showInterest ? interestCalc.calculateBillInterest : undefined
     });
   };
 
@@ -134,59 +155,62 @@ export const GpOsPartyDetailScreen: React.FC<Props> = ({ navigation, route }) =>
     <View style={styles.container}>
       <GradientHeader title="GP O/s (Party Wise)"
         onBack={() => navigation.goBack()}
-        rightElement={
-          <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-            <Icon name="whatsapp" size={18} color={Colors.textWhite} />
-          </TouchableOpacity>
-        }
+        rightElement={null}
       />
       <CompanyStrip />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* OG-style summary header (GPOsPartyDetailPage): party, address, broker,
             dates, Total O/s. */}
         <View style={styles.ogSummary}>
-          <Text style={styles.ogParty}>{party.name}</Text>
-          <View style={styles.addressRow}>
-            {party.address ? <Text style={styles.ogAddress}>{party.address}</Text> : <View style={{ flex: 1 }} />}
+          <View style={styles.summaryTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.ogParty} numberOfLines={1}>{party.name}</Text>
+              <Text style={styles.ogAddress} numberOfLines={1}>
+                {party.address ? `${party.address} | ` : ''}Broker: {brokerName || 'DIRECT'}
+              </Text>
+              {filter?.fromDate || filter?.toDate ? (
+                <Text style={styles.ogLine}>
+                  From {toDDMMYY(filter.fromDate)} To {toDDMMYY(filter.toDate)}
+                </Text>
+              ) : null}
+            </View>
             <TouchableOpacity
-              onPress={() => party.phone ? Linking.openURL(`whatsapp://send?phone=91${party.phone}`) : Alert.alert('No Phone', 'No phone number available')}
+              onPress={handleShare}
               activeOpacity={0.8}
               style={styles.waIcon}
             >
-              <Icon name="whatsapp" size={24} color={Colors.success} />
+              <Icon name="file-pdf-box" size={24} color={Colors.gradientStart} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.ogLine}>Broker : {brokerName || 'DIRECT'}</Text>
-          {filter?.fromDate || filter?.toDate ? (
-            <Text style={styles.ogLine}>
-              From {toDDMMYY(filter.fromDate)}   To {toDDMMYY(filter.toDate)}
-            </Text>
-          ) : null}
-          <Text style={styles.ogTotal}>Total O/s : {formatCurrency(party.totalOs)}</Text>
-          <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
-          
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleItem}>
-              <Text style={styles.toggleLabel}>Only Due</Text>
-              <Switch
-                value={onlyDue}
-                onValueChange={setOnlyDue}
-                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
-                thumbColor={Colors.surface}
-                ios_backgroundColor={Colors.gray300}
-                style={styles.switch}
-              />
+
+          <View style={styles.summaryBottomRow}>
+            <View>
+              <Text style={styles.ogTotal}>Total O/s: {formatCurrency(party.totalOs)}</Text>
+              <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
             </View>
-            <View style={styles.toggleItem}>
-              <Text style={styles.toggleLabel}>Show Interest</Text>
-              <Switch
-                value={showInterest}
-                onValueChange={setShowInterest}
-                trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
-                thumbColor={Colors.surface}
-                ios_backgroundColor={Colors.gray300}
-                style={styles.switch}
-              />
+            <View style={styles.compactToggles}>
+              <View style={styles.toggleItem}>
+                <Text style={styles.toggleLabel}>Due</Text>
+                <Switch
+                  value={onlyDue}
+                  onValueChange={setOnlyDue}
+                  trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                  thumbColor={Colors.surface}
+                  ios_backgroundColor={Colors.gray300}
+                  style={styles.switch}
+                />
+              </View>
+              <View style={styles.toggleItem}>
+                <Text style={styles.toggleLabel}>Interest</Text>
+                <Switch
+                  value={showInterest}
+                  onValueChange={setShowInterest}
+                  trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                  thumbColor={Colors.surface}
+                  ios_backgroundColor={Colors.gray300}
+                  style={styles.switch}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -269,27 +293,31 @@ const styles = StyleSheet.create({
 
   // OG-style summary header block (light blue, like the .NET Blue400Accent frame).
   ogSummary: {
-    backgroundColor: '#E7F0FE',
+    backgroundColor: Colors.infoLight,
     marginHorizontal: -Spacing.md,
     marginTop: -Spacing.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
+  summaryTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  summaryBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 },
   ogParty: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  ogAddress: { fontSize: Typography.fontSizes.sm, fontStyle: 'italic' as const, color: Colors.textSecondary, marginTop: 2 },
-  ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 4 },
-  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientEnd, marginTop: 6 },
+  addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: 2 },
+  ogAddress: { flex: 1, fontSize: 10, fontStyle: 'italic', color: Colors.textSecondary },
+  waIcon: { padding: 4, backgroundColor: Colors.successLight, borderRadius: 20 },
+  ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 2 },
+  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientEnd },
   ogSub: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
   invoicesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   onlyDueToggle: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   onlyDueLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textSecondary },
-  switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
-  addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: 2 },
-  waIcon: { padding: 4, backgroundColor: Colors.successLight, borderRadius: 20 },
+  
+  compactToggles: { flexDirection: 'row', gap: Spacing.md },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
   toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
+  switch: { transform: [{ scaleX: 0.70 }, { scaleY: 0.70 }] },
   selectAll: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: Spacing.sm },
   selectAllText: { fontSize: Typography.fontSizes.xs, color: Colors.gradientEnd, fontWeight: Typography.fontWeights.semiBold },
   // Full-bleed table section: cancels the ScrollView's horizontal padding so the

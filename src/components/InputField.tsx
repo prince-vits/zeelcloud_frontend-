@@ -22,6 +22,7 @@ interface InputFieldProps {
   onRightIconPress?: () => void;
   error?: string;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  editable?: boolean;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({
@@ -36,11 +37,12 @@ export const InputField: React.FC<InputFieldProps> = ({
   onRightIconPress,
   error,
   autoCapitalize = 'none',
+  editable = true,
 }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+      <View style={[styles.inputWrapper, error ? styles.inputError : null, !editable && styles.inputDisabled]}>
         {leftIcon ? (
           <Icon name={leftIcon} size={20} color={Colors.gray400} style={styles.leftIcon} />
         ) : null}
@@ -54,12 +56,14 @@ export const InputField: React.FC<InputFieldProps> = ({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
+          editable={editable}
         />
         {rightIcon ? (
           <TouchableOpacity
             onPress={onRightIconPress}
             style={styles.rightIcon}
             activeOpacity={0.7}
+            disabled={!editable}
           >
             <Icon name={rightIcon} size={20} color={Colors.gray400} />
           </TouchableOpacity>
@@ -83,11 +87,14 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.gray50,
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
     minHeight: 50,
+  },
+  inputDisabled: {
+    backgroundColor: Colors.gray100,
   },
   inputError: {
     borderColor: Colors.danger,

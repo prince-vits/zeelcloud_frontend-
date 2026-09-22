@@ -90,6 +90,7 @@ export const EditSubUserScreen: React.FC = () => {
       if (values.phone?.trim()) updateData.contact_no = values.phone.trim();
 
       updateData.is_active = values.isActive;
+      updateData.is_sales_order_creation_allowed = values.isSalesOrderCreationAllowed;
 
       if (values.allowedModules.length > 0) {
         updateData.form_ids = values.allowedModules

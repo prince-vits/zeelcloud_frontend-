@@ -7,15 +7,20 @@ import { mockUser } from '../data/mockData';
 import { FORM_ID_TO_MODULE } from '../constants/options';
 import {
   apiFetch,
+  getActiveAccountId,
   mapBillDetail,
   buildCompanyQuery,
   buildOsQuery,
+  buildMachineWiseQuery,
   extractDataArray,
   fetchPartyBills,
   mapBankAccount,
   mapCompany,
   mapGpOsParty,
   mapGpRegisterEntry,
+  mapMachineWiseDetailRow,
+  mapMachineWiseFilterOptions,
+  mapMachineWiseSummaryRow,
   mapPartyLedgerAccount,
   mapPurchaseOsParty,
   mapRegisterEntry,
@@ -27,6 +32,7 @@ import {
   mapYarnStockItem,
   stockEndpoint,
   aggregateStockData,
+  mapStockDetailItem,
 } from './apiHelpers';
 import type {
   BillDetail,
@@ -48,11 +54,16 @@ import type {
   RegisterEntry,
   GpRegisterEntry,
   StockItem,
+  StockDetailItem,
   LedgerEntry,
   BankAccount,
   PartyLedgerAccount,
   SalesReportPoint,
   ReportFilter,
+  MachineWiseDetailRow,
+  MachineWiseFilter,
+  MachineWiseFilterOptions,
+  MachineWiseSummaryRow,
   Item,
   AccountParty,
   SalesOrder,
@@ -78,6 +89,7 @@ type SubUserApiItem = {
   is_active?: unknown;
   contact_no?: unknown;
   company_name?: unknown;
+  is_sales_order_creation_allowed?: unknown;
   allowed_forms?: unknown;
   profile?: {
     is_active?: unknown;
@@ -137,6 +149,8 @@ const parseSubUserResponse = (data: unknown): SubUser => {
         ? item.company_name
         : '';
 
+  const isSalesOrderCreationAllowed = item.is_sales_order_creation_allowed === true;
+
   return {
     id: String(item.id),
     username: item.username,
@@ -146,6 +160,7 @@ const parseSubUserResponse = (data: unknown): SubUser => {
     phone,
     companyName,
     isActive,
+    isSalesOrderCreationAllowed,
     allowedModules,
     allowedFormIds,
   };
@@ -193,7 +208,6 @@ export const authApi = {
     if (!data || typeof data !== 'object') {
       throw new Error('Profile response was invalid');
     }
-
     const profileData = data as {
       id?: unknown;
       username?: unknown;
@@ -205,11 +219,16 @@ export const authApi = {
         company_name?: unknown;
         contact_no?: unknown;
         updated_at?: unknown;
+        is_sales_order_creation_allowed?: unknown;
       };
       user_companies?: unknown;
       is_subuser?: unknown;
       parent_user_id?: unknown;
       allowed_forms?: unknown;
+      contact_no?: unknown;
+      is_active?: unknown;
+      company_name?: unknown;
+      is_sales_order_creation_allowed?: unknown;
     };
 
     if (typeof profileData.id !== 'number' || typeof profileData.username !== 'string') {
@@ -248,7 +267,7 @@ export const authApi = {
           if (!form || typeof form !== 'object') return [];
           const item = form as { id?: unknown; formname?: unknown };
           return typeof item.id === 'number' && typeof item.formname === 'string'
-            ? [{ id: item.id, formName: item.formname }]
+            ? [{ id: item.id, formName: FORM_ID_TO_MODULE[item.id] || item.formname }]
             : [];
         })
       : [];
@@ -259,36 +278,24 @@ export const authApi = {
       name,
       role: profileData.is_subuser === true ? 'Sub User' : 'User',
       email: typeof profileData.email === 'string' ? profileData.email : undefined,
-      phone: typeof profile?.contact_no === 'string' ? profile.contact_no : undefined,
+      phone: typeof profile?.contact_no === 'string' ? profile.contact_no : (typeof profileData.contact_no === 'string' ? profileData.contact_no : undefined),
       firstName,
       lastName,
-      isActive: profile?.is_active === true,
-      companyName: typeof profile?.company_name === 'string' ? profile.company_name : undefined,
+      isActive: profile?.is_active === true || profileData.is_active === true,
+      companyName: typeof profile?.company_name === 'string' ? profile.company_name : (typeof profileData.company_name === 'string' ? profileData.company_name : undefined),
       updatedAt: typeof profile?.updated_at === 'string' ? profile.updated_at : undefined,
       userCompanies,
       isSubuser: profileData.is_subuser === true,
       parentUserId: typeof profileData.parent_user_id === 'number' ? profileData.parent_user_id : null,
       allowedForms,
+      isSalesOrderCreationAllowed: profileData.is_subuser !== true || profile?.is_sales_order_creation_allowed === true || profileData.is_sales_order_creation_allowed === true,
     };
   },
-  getSubUsers: async (token: string): Promise<SubUser[]> => {
-    const response = await fetch(`${apiClient.baseURL}/sub-users/`, {
-      method: 'GET',
-      headers: {
-        ...apiClient.headers,
-        Authorization: `Token ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Get sub users failed with status ${response.status}`);
-    }
-
-    const data: unknown = await response.json();
+  getSubUsers: async (_token: string): Promise<SubUser[]> => {
+    const data = await apiFetch<unknown>('/sub-users/');
     if (!Array.isArray(data)) {
       throw new Error('Sub users response was invalid');
     }
-
     return data.flatMap((subUser): SubUser[] => {
       try {
         return [parseSubUserResponse(subUser)];
@@ -297,19 +304,12 @@ export const authApi = {
       }
     });
   },
-  getSubUser: async (token: string, id: string): Promise<SubUser> => {
-    const response = await fetch(`${apiClient.baseURL}/sub-users/${id}/`, {
-      method: 'GET',
-      headers: { ...apiClient.headers, Authorization: `Token ${token}` },
-    });
-
-    if (!response.ok) throw new Error(`Get sub user failed with status ${response.status}`);
-
-    const data: unknown = await response.json();
+  getSubUser: async (_token: string, id: string): Promise<SubUser> => {
+    const data = await apiFetch<unknown>(`/sub-users/${id}/`);
     return parseSubUserResponse(data);
   },
   createSubUser: async (
-    token: string,
+    _token: string,
     data: {
       username: string;
       password: string;
@@ -319,23 +319,18 @@ export const authApi = {
       last_name?: string;
       email?: string;
       company_name?: string;
+      is_sales_order_creation_allowed?: boolean;
     },
   ): Promise<SubUser> => {
-    const response = await fetch(`${apiClient.baseURL}/sub-users/`, {
+    const responseData = await apiFetch<unknown>('/sub-users/', {
       method: 'POST',
-      headers: { ...apiClient.headers, Authorization: `Token ${token}` },
       body: JSON.stringify(data),
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    if (!response.ok) {
-      throw new Error(`Create sub user failed with status ${response.status}`);
-    }
-
-    const responseData: unknown = await response.json();
     return parseSubUserResponse(responseData);
   },
   updateSubUser: async (
-    token: string,
+    _token: string,
     id: string,
     updates: {
       first_name?: string;
@@ -346,30 +341,20 @@ export const authApi = {
       company_name?: string;
       contact_no?: string;
       form_ids?: number[];
+      is_sales_order_creation_allowed?: boolean;
     },
   ): Promise<SubUser> => {
-    const response = await fetch(`${apiClient.baseURL}/sub-users/${id}/`, {
+    const data = await apiFetch<unknown>(`/sub-users/${id}/`, {
       method: 'PATCH',
-      headers: { ...apiClient.headers, Authorization: `Token ${token}` },
       body: JSON.stringify(updates),
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    if (!response.ok) {
-      throw new Error(`Update sub user failed with status ${response.status}`);
-    }
-
-    const data: unknown = await response.json();
     return parseSubUserResponse(data);
   },
-  deactivateSubUser: async (token: string, id: string): Promise<void> => {
-    const response = await fetch(`${apiClient.baseURL}/sub-users/${id}/`, {
+  deactivateSubUser: async (_token: string, id: string): Promise<void> => {
+    await apiFetch<unknown>(`/sub-users/${id}/`, {
       method: 'DELETE',
-      headers: { ...apiClient.headers, Authorization: `Token ${token}` },
     });
-
-    if (!response.ok) {
-      throw new Error(`Deactivate sub user failed with status ${response.status}`);
-    }
   },
   logout: async (): Promise<void> => {
     await new Promise((r) => setTimeout(r, 300));
@@ -620,6 +605,9 @@ export const gpRegisterApi = {
 
 // ─── Stock ────────────────────────────────────────────────────────────────────
 
+const stockCache = new Map<string, { promise: Promise<StockItem[]>; timestamp: number }>();
+const CACHE_TTL = 30000; // 30 seconds
+
 export const stockApi = {
   getAll: async (companyId?: string): Promise<StockItem[]> => {
     // allSettled, not all: the Non-Issue summary aggregates four independent stock
@@ -634,7 +622,7 @@ export const stockApi = {
     ]);
     return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
   },
-  getByCategory: async (
+  getByCategory: (
     category: 'yarn' | 'beam' | 'nonIssue',
     companyId?: string,
     reportType: 'quality' | 'qualityLotGrade' = 'quality',
@@ -642,10 +630,77 @@ export const stockApi = {
   ): Promise<StockItem[]> => {
     const stockSource = source ?? category;
     const path = `${stockEndpoint(stockSource, reportType)}${buildCompanyQuery(companyId)}`;
+    const cacheKey = `${getActiveAccountId() || ''}-${path}`;
+
+    const now = Date.now();
+    const cached = stockCache.get(cacheKey);
+    if (cached && now - cached.timestamp < CACHE_TTL) {
+      return cached.promise;
+    }
+
+    const promise = (async () => {
+      const payload = await apiFetch<unknown>(path);
+      const rawData = extractDataArray(payload);
+      const aggregated = aggregateStockData(rawData, reportType);
+      return aggregated.map((row) => mapYarnStockItem(row, category));
+    })();
+
+    stockCache.set(cacheKey, { promise, timestamp: now });
+
+    promise.catch(() => {
+      // Remove failed promises from cache so the next call retries
+      if (stockCache.get(cacheKey)?.promise === promise) {
+        stockCache.delete(cacheKey);
+      }
+    });
+
+    return promise;
+  },
+  getCategoryDetails: async (
+    itemName: string,
+    lotNo: string | undefined,
+    category: 'yarn' | 'beam' | 'nonIssue',
+    companyId?: string,
+    reportType: 'quality' | 'qualityLotGrade' = 'quality',
+    source?: 'yarn' | 'beam' | 'gray' | 'sequance',
+  ): Promise<StockDetailItem[]> => {
+    const stockSource = source ?? category;
+    const path = `${stockEndpoint(stockSource, reportType)}${buildCompanyQuery(companyId)}`;
     const payload = await apiFetch<unknown>(path);
     const rawData = extractDataArray(payload);
-    const aggregated = aggregateStockData(rawData, reportType);
-    return aggregated.map((row) => mapYarnStockItem(row, category));
+    
+    // Filter raw data matching the selected item and lot
+    const filtered = rawData.filter((row) => {
+      // The API properties check: vv_item_name and vv_lot_no
+      const rowItem = typeof row.vv_item_name === 'string' ? row.vv_item_name : '';
+      const rowLot = typeof row.vv_lot_no === 'string' ? row.vv_lot_no : '';
+      if (rowItem !== itemName) return false;
+      if (reportType === 'qualityLotGrade' && lotNo && rowLot !== lotNo) return false;
+      return true;
+    });
+
+    return filtered.map(mapStockDetailItem);
+  },
+};
+
+// ─── Machine Wise Beam Stock ──────────────────────────────────────────────────
+
+export const machineWiseApi = {
+  getFilters: async (): Promise<MachineWiseFilterOptions> => {
+    const payload = await apiFetch<unknown>('/machine-wise-beam-stock/filters/');
+    return mapMachineWiseFilterOptions(payload);
+  },
+  getDetail: async (filter?: MachineWiseFilter): Promise<MachineWiseDetailRow[]> => {
+    const payload = await apiFetch<unknown>(
+      `/machine-wise-beam-stock/${buildMachineWiseQuery({ ...filter, view: 'detail' } as MachineWiseFilter)}`,
+    );
+    return extractDataArray(payload).map(mapMachineWiseDetailRow);
+  },
+  getSummary: async (filter?: MachineWiseFilter): Promise<MachineWiseSummaryRow[]> => {
+    const payload = await apiFetch<unknown>(
+      `/machine-wise-beam-stock/${buildMachineWiseQuery({ ...filter, view: 'summary' } as MachineWiseFilter)}`,
+    );
+    return extractDataArray(payload).map(mapMachineWiseSummaryRow);
   },
 };
 
@@ -794,28 +849,30 @@ export const accountsApi = {
 const mapSalesOrder = (row: Record<string, unknown>): SalesOrder => {
   const rawItems = Array.isArray(row.items) ? row.items : [];
   return {
-    id: typeof row.id === 'string' ? row.id : typeof row.id === 'number' ? row.id : '',
+    id: typeof row.id === 'number' ? row.id : Number(row.id) || 0,
     companyId: typeof row.company_id === 'number' ? row.company_id : 0,
     orderNo: typeof row.order_no === 'string' ? row.order_no : '',
     date: typeof row.date === 'string' ? row.date : '',
     partyId: typeof row.party_id === 'number' ? row.party_id : 0,
     partyName: typeof row.party_name === 'string' ? row.party_name : '',
+    discount_type: typeof row.discount_type === 'string' && (row.discount_type === 'amount' || row.discount_type === 'percentage') ? row.discount_type : 'amount',
+    discount_value: typeof row.discount_value === 'number' ? row.discount_value : 0,
     discount: typeof row.discount === 'number' ? row.discount : 0,
     totalAmount: typeof row.total_amount === 'number' ? row.total_amount : 0,
     remark: typeof row.remark === 'string' ? row.remark : '',
     items: rawItems.map((it) => {
       const item = it as Record<string, unknown>;
       return {
-        id: typeof item.id === 'string' ? item.id : String(item.id ?? ''),
-        vn_item_id: typeof item.vn_item_id === 'number' ? item.vn_item_id : 0,
-        vv_item_name: typeof item.vv_item_name === 'string' ? item.vv_item_name : '',
-        vv_color: typeof item.vv_color === 'string' ? item.vv_color : '',
-        vn_nos: typeof item.vn_nos === 'number' ? item.vn_nos : 0,
-        vn_cut: typeof item.vn_cut === 'number' ? item.vn_cut : 0,
-        vn_qnty: typeof item.vn_qnty === 'number' ? item.vn_qnty : 0,
-        vn_rate: typeof item.vn_rate === 'number' ? item.vn_rate : 0,
-        vn_amount: typeof item.vn_amount === 'number' ? item.vn_amount : 0,
-        vn_line_no: typeof item.vn_line_no === 'number' ? item.vn_line_no : 0,
+        id: typeof item.id === 'number' ? item.id : Number(item.id) || 0,
+        item_id: typeof item.item_id === 'number' ? item.item_id : 0,
+        item_name: typeof item.item_name === 'string' ? item.item_name : '',
+        color: typeof item.color === 'string' ? item.color : '',
+        nos: typeof item.nos === 'number' ? item.nos : 0,
+        cut: typeof item.cut === 'number' ? item.cut : 0,
+        qnty: typeof item.qnty === 'number' ? item.qnty : 0,
+        rate: typeof item.rate === 'number' ? item.rate : 0,
+        amount: typeof item.amount === 'number' ? item.amount : 0,
+        line_no: typeof item.line_no === 'number' ? item.line_no : 0,
       };
     }),
   };

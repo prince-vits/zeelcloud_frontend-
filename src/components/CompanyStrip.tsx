@@ -33,6 +33,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingVertical: 4,
     alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.primaryLight,
   },
   company: {
     fontSize: 11,

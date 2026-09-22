@@ -1,111 +1,90 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ZIcon as Icon } from '../../components/ZIcon';
+import { RouteProp } from '@react-navigation/native';
 import { GradientHeader } from '../../components/GradientHeader';
 import { SearchBar } from '../../components/SearchBar';
-import { EmptyState } from '../../components/EmptyState';
 import { LoadingOverlay } from '../../components/LoadingOverlay';
+import { GridTable, GridColumn, GridText } from '../../components/GridTable';
+import { CompanyStrip } from '../../components/CompanyStrip';
 import { gpRegisterApi } from '../../services/api';
 import { useCompanyStore } from '../../store/companyStore';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme';
+import { Colors, Typography, Spacing } from '../../theme';
 import type { GpRegisterStackParamList, GpRegisterEntry } from '../../types';
-import { formatCurrency } from '../../utils/currency';
 import { toDDMMYY } from '../../utils/formatDate';
 
 type Props = {
   navigation: NativeStackNavigationProp<GpRegisterStackParamList, 'GpRegister'>;
+  route: RouteProp<GpRegisterStackParamList, 'GpRegister'>;
 };
 
-
-const processColors: Record<string, string> = {
-  Dyeing: Colors.gradientStart,
-  Finishing: Colors.success,
-  Printing: Colors.warning,
-  Bleaching: Colors.info,
-};
-
-export const GpRegisterScreen: React.FC<Props> = ({ navigation }) => {
+export const GpRegisterScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCompany } = useCompanyStore();
   const [entries, setEntries] = useState<GpRegisterEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    gpRegisterApi.getEntries({
-      reportType: 'gp',
-      fromDate: '',
-      toDate: '',
-      companyId: selectedCompany?.id,
-    }).then((data) => {
+    setLoading(true);
+    const filter = { ...route.params.filter, companyId: String(selectedCompany?.recordId || selectedCompany?.id) };
+    gpRegisterApi.getEntries(filter).then((data) => {
       setEntries(data);
       setLoading(false);
     })
       .catch(() => setLoading(false));
-  }, [selectedCompany?.id]);
+  }, [route.params.filter, selectedCompany?.recordId, selectedCompany?.id]);
 
   const lowerSearch = search.toLowerCase();
   const filtered = entries.filter(
     (e) =>
       e.partyName.toLowerCase().includes(lowerSearch) ||
-      e.processType.toLowerCase().includes(lowerSearch),
+      e.entryNo.toLowerCase().includes(lowerSearch) ||
+      e.billNo.toLowerCase().includes(lowerSearch) ||
+      e.date.includes(lowerSearch)
   );
 
-  const renderItem = ({ item }: { item: GpRegisterEntry }) => {
-    const pColor = processColors[item.processType] ?? Colors.gradientStart;
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate('GpRegisterDetail', { entryId: item.id })}
-        activeOpacity={0.85}
-      >
-        <View style={[styles.processTag, { backgroundColor: pColor + '20' }]}>
-          <Icon name="cog-outline" size={20} color={pColor} />
+  const totalAmount = filtered.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  const columns: GridColumn<GpRegisterEntry>[] = [
+    { 
+      key: 'entryNo', 
+      label: 'Entry No\nDate', 
+      flex: 0.9, 
+      align: 'left', 
+      render: (inv) => (
+        <View style={styles.stackedCell}>
+          <Text style={styles.stackedTop}>{inv.entryNo}</Text>
+          <Text style={styles.stackedBottom}>{toDDMMYY(inv.date)}</Text>
         </View>
-        <View style={styles.info}>
-          <View style={styles.header}>
-            <Text style={styles.lotNo}>{item.lotNo ?? 'No Lot'}</Text>
-            <View style={[styles.processChip, { backgroundColor: pColor + '20' }]}>
-              <Text style={[styles.processText, { color: pColor }]}>{item.processType}</Text>
-            </View>
-          </View>
-          <Text style={styles.partyName}>{item.partyName}</Text>
-          <View style={styles.qtyRow}>
-            <View style={styles.qtyItem}>
-              <Icon name="grid-large" size={12} color={Colors.textSecondary} />
-              <Text style={styles.qtyLabel}>Gray: </Text>
-              <Text style={styles.qtyValue}>{item.grayQty.toLocaleString()} m</Text>
-            </View>
-            <View style={styles.qtyItem}>
-              <Icon name="layers-outline" size={12} color={Colors.textSecondary} />
-              <Text style={styles.qtyLabel}>Beam: </Text>
-              <Text style={styles.qtyValue}>{item.beamQty}</Text>
-            </View>
-            <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
-          </View>
-          <View style={styles.footer}>
-            <Icon name="calendar-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.date}>{toDDMMYY(item.date)}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+      ) 
+    },
+    { key: 'billNo', label: 'Bill no', flex: 0.8, render: (inv) => <GridText color={Colors.danger} bold>{inv.billNo}</GridText> },
+    { key: 'partyName', label: 'Party Name', flex: 1.8, align: 'left', render: (inv) => <GridText align="left">{inv.partyName}</GridText> },
+    { key: 'amount', label: 'Amount', flex: 1.2, align: 'right', render: (inv) => <GridText align="right">{`₹ ${inv.amount.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText> },
+  ];
 
   return (
     <View style={styles.container}>
       <GradientHeader title="GP Register" subtitle="Job Work Entries" onBack={() => navigation.goBack()} />
+      <CompanyStrip />
+      
       <View style={styles.searchWrapper}>
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Search by party or process..." />
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Search Party, Bill No, Date, Amount" />
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total Amount: </Text>
+          <Text style={styles.totalValue}>{`₹ ${totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</Text>
+        </View>
       </View>
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<EmptyState icon="chart-bar" title="No GP entries found" />}
-      />
+      
+      <View style={styles.tableWrapper}>
+        <GridTable
+          columns={columns}
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          emptyText="No GP entries found"
+          onRowPress={(item) => navigation.navigate('GpRegisterDetail', { entryId: item.id })}
+        />
+      </View>
       <LoadingOverlay visible={loading} message="Loading..." />
     </View>
   );
@@ -114,35 +93,40 @@ export const GpRegisterScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   searchWrapper: { padding: Spacing.md, paddingBottom: Spacing.sm },
-  list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xl },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    ...Shadows.card,
-  },
-  processTag: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    justifyContent: 'center',
+  totalRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'flex-end', 
     alignItems: 'center',
-    marginRight: Spacing.md,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.xs
   },
-  info: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  lotNo: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  processChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  processText: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.semiBold },
-  partyName: { fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.medium, color: Colors.textPrimary, marginBottom: 8 },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: Spacing.sm },
-  qtyItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  qtyLabel: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary },
-  qtyValue: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary },
-  amount: { marginLeft: 'auto', fontSize: Typography.fontSizes.base, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  date: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary },
+  totalLabel: { 
+    fontSize: Typography.fontSizes.base, 
+    fontWeight: Typography.fontWeights.semiBold, 
+    color: Colors.textSecondary 
+  },
+  totalValue: { 
+    fontSize: Typography.fontSizes.lg, 
+    fontWeight: Typography.fontWeights.bold, 
+    color: Colors.textPrimary 
+  },
+  tableWrapper: {
+    flex: 1,
+    paddingHorizontal: 0,
+    paddingBottom: Spacing.md
+  },
+  stackedCell: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  stackedTop: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.semiBold,
+    color: Colors.textPrimary,
+  },
+  stackedBottom: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  }
 });

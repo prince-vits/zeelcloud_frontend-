@@ -11,15 +11,27 @@ type Props = {
   route: RouteProp<StockStackParamList, 'YarnStock'>;
 };
 
-export const YarnStockScreen: React.FC<Props> = ({ navigation, route }) => (
-  <StockReportView
-    title="Yarn Stock"
-    category="yarn"
-    columns={route.params.reportType === 'qualityLotGrade' ? yarnLotGradeColumns : yarnColumns}
-    reportType={route.params.reportType}
-    rowEmoji={yarnEmoji}
-    searchPlaceholder="Search yarn..."
-    emptyIcon="thread"
-    onBack={() => navigation.goBack()}
-  />
-);
+export const YarnStockScreen: React.FC<Props> = ({ navigation, route }) => {
+  const isLotGrade = route.params.reportType === 'qualityLotGrade';
+  return (
+    <StockReportView
+      title="Yarn Stock"
+      category="yarn"
+      columns={isLotGrade ? yarnLotGradeColumns : yarnColumns}
+      reportType={route.params.reportType}
+      rowEmoji={isLotGrade ? undefined : yarnEmoji}
+      searchPlaceholder="Search yarn..."
+      emptyIcon="package-variant"
+      onBack={() => navigation.goBack()}
+      onRowPress={(item, commonCompany) =>
+        navigation.navigate('StockItemDetail', {
+          itemName: item.name,
+          lotNo: item.lotNo !== '-' ? item.lotNo : undefined,
+          category: 'yarn',
+          reportType: route.params.reportType,
+          commonCompany,
+        })
+      }
+    />
+  );
+};

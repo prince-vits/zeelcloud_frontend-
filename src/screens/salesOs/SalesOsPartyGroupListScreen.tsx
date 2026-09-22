@@ -20,7 +20,7 @@ type Props = {
 };
 
 
-const groupColors = ['#7C3AED', '#10B981', '#F59E0B', '#2563EB'];
+const groupColors = [Colors.primaryLight, Colors.success, Colors.warning, Colors.primary];
 
 export const SalesOsPartyGroupListScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCompany } = useCompanyStore();

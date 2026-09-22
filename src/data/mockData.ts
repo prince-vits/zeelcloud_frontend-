@@ -49,36 +49,42 @@ export const mockSubUsers: SubUser[] = [
     id: 'su001', name: 'Ramesh Kumar', username: 'rameshkumar', password: 'ramesh@123',
     email: 'ramesh.kumar@zeeltextiles.com', phone: '+91 98765 42250',
     companyName: 'Zeel Textiles Pvt. Ltd.', isActive: true,
+    isSalesOrderCreationAllowed: true,
     allowedModules: ['Stock Details', 'Sales Outstanding / Data Entry', 'Purchase Outstanding', 'Sales Register', 'Work / Cash Ledger', 'Party Ledger', 'Yarn Stock'],
   },
   {
     id: 'su002', name: 'Suresh Patel', username: 'sureshpatel', password: 'suresh@123',
     email: 'suresh.patel@zeeltextiles.com', phone: '+91 98765 42251',
     companyName: 'Zeel Textiles Pvt. Ltd.', isActive: true,
+    isSalesOrderCreationAllowed: true,
     allowedModules: ['Stock Details', 'Sales Register', 'Purchase Register', 'Party Ledger'],
   },
   {
     id: 'su003', name: 'Amit Sharma', username: 'amitsharma', password: 'amit@123',
     email: 'amit.sharma@zeeltextiles.com', phone: '+91 98765 42252',
     companyName: 'Zeel Textiles Pvt. Ltd.', isActive: true,
+    isSalesOrderCreationAllowed: false,
     allowedModules: ['Sales Outstanding / Data Entry', 'Purchase Outstanding', 'General Purchase Outstanding'],
   },
   {
     id: 'su004', name: 'Pooja Mehta', username: 'poojamehta', password: 'pooja@123',
     email: 'pooja.mehta@zeeltextiles.com', phone: '+91 98765 42253',
     companyName: 'Zeel Textiles Pvt. Ltd.', isActive: false,
+    isSalesOrderCreationAllowed: false,
     allowedModules: ['Stock Details', 'Yarn Stock', 'Beam Stock', 'Non Issue Stock'],
   },
   {
     id: 'su005', name: 'Manish Verma', username: 'manishverma', password: 'manish@123',
     email: 'manish.verma@zeeltextiles.com', phone: '+91 98765 42254',
     companyName: 'Zeel Textiles Pvt. Ltd.', isActive: true,
+    isSalesOrderCreationAllowed: true,
     allowedModules: ['Sales Register', 'Purchase Register', 'Work / Cash Ledger', 'Party Ledger', 'Stock Details'],
   },
   {
     id: 'su006', name: 'Kiran Joshi', username: 'kiranjoshi', password: 'kiran@123',
     email: 'kiran.joshi@zeeltextiles.com', phone: '+91 98765 42255',
     companyName: 'Zeel Textiles Pvt. Ltd.', isActive: true,
+    isSalesOrderCreationAllowed: false,
     allowedModules: ['Stock Details', 'Sales Outstanding / Data Entry'],
   },
 ];
@@ -349,14 +355,14 @@ export const mockPurchaseRegisterEntries: RegisterEntry[] = [
 // ─── GP Register Entries ──────────────────────────────────────────────────────
 
 export const mockGpRegisterEntries: GpRegisterEntry[] = [
-  { id: 'gp001', date: '2024-06-01', partyName: 'Surat Dyeing & Processing', grayQty: 2500, beamQty: 50, processType: 'Dyeing', amount: 62500, lotNo: 'LOT-001', quality: '60x80 Cotton' },
-  { id: 'gp002', date: '2024-06-02', partyName: 'Bharat Finishing Works', grayQty: 1800, beamQty: 36, processType: 'Finishing', amount: 45000, lotNo: 'LOT-002', quality: 'Polyester Blend' },
-  { id: 'gp003', date: '2024-06-04', partyName: 'Om Prints', grayQty: 3200, beamQty: 64, processType: 'Printing', amount: 96000, lotNo: 'LOT-003', quality: 'Silk Rayon' },
-  { id: 'gp004', date: '2024-06-05', partyName: 'Surat Dyeing & Processing', grayQty: 2000, beamQty: 40, processType: 'Dyeing', amount: 50000, lotNo: 'LOT-004', quality: 'Cotton Lawn' },
-  { id: 'gp005', date: '2024-06-07', partyName: 'Kiran Process House', grayQty: 1500, beamQty: 30, processType: 'Bleaching', amount: 30000, lotNo: 'LOT-005', quality: '40x40 Cotton' },
-  { id: 'gp006', date: '2024-06-09', partyName: 'Bharat Finishing Works', grayQty: 2800, beamQty: 56, processType: 'Finishing', amount: 70000, lotNo: 'LOT-006', quality: 'Viscose Blend' },
-  { id: 'gp007', date: '2024-06-11', partyName: 'Om Prints', grayQty: 1200, beamQty: 24, processType: 'Printing', amount: 36000, lotNo: 'LOT-007', quality: 'Georgette' },
-  { id: 'gp008', date: '2024-06-13', partyName: 'Kiran Process House', grayQty: 3500, beamQty: 70, processType: 'Bleaching', amount: 70000, lotNo: 'LOT-008', quality: '60x80 Cotton' },
+  { id: 'gp001', date: '2024-06-01', partyName: 'Surat Dyeing & Processing', amount: 62500, entryNo: 'LOT-001', billNo: 'B001', description: '60x80 Cotton Dyeing' },
+  { id: 'gp002', date: '2024-06-02', partyName: 'Bharat Finishing Works', amount: 45000, entryNo: 'LOT-002', billNo: 'B002', description: 'Polyester Blend Finishing' },
+  { id: 'gp003', date: '2024-06-04', partyName: 'Om Prints', amount: 96000, entryNo: 'LOT-003', billNo: 'B003', description: 'Silk Rayon Printing' },
+  { id: 'gp004', date: '2024-06-05', partyName: 'Surat Dyeing & Processing', amount: 50000, entryNo: 'LOT-004', billNo: 'B004', description: 'Cotton Lawn Dyeing' },
+  { id: 'gp005', date: '2024-06-07', partyName: 'Kiran Process House', amount: 30000, entryNo: 'LOT-005', billNo: 'B005', description: '40x40 Cotton Bleaching' },
+  { id: 'gp006', date: '2024-06-09', partyName: 'Bharat Finishing Works', amount: 70000, entryNo: 'LOT-006', billNo: 'B006', description: 'Viscose Blend Finishing' },
+  { id: 'gp007', date: '2024-06-11', partyName: 'Om Prints', amount: 36000, entryNo: 'LOT-007', billNo: 'B007', description: 'Georgette Printing' },
+  { id: 'gp008', date: '2024-06-13', partyName: 'Kiran Process House', amount: 70000, entryNo: 'LOT-008', billNo: 'B008', description: '60x80 Cotton Bleaching' },
 ];
 
 // ─── Stock Items ──────────────────────────────────────────────────────────────

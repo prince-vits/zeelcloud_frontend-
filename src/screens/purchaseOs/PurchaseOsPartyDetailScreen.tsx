@@ -15,6 +15,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 import type { PurchaseOsStackParamList, PurchaseOsParty, PurchaseOsInvoice } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { toDDMMYY } from '../../utils/formatDate';
+import { generateOutstandingReportPDF } from '../../utils/pdfGenerator';
 
 type Props = {
   navigation: NativeStackNavigationProp<PurchaseOsStackParamList, 'PurchaseOsPartyDetail'>;
@@ -69,7 +70,7 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
   // OG .NET grid columns — same layout as SalesOsPartyDetailPage, fits screen width.
   const billColumns: GridColumn<PurchaseOsInvoice>[] = [
     {
-      key: 'sel', label: '', width: 30,
+      key: 'sel', label: '', width: 24,
       render: (inv) => (
         <Icon
           name={selectedIds.includes(inv.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
@@ -78,24 +79,24 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
         />
       ),
     },
-        { key: 'bookCode', label: 'Book', width: 35 },
-    { key: 'number', label: 'Bill No', flex: 0.8, render: (inv) => <GridText bold>{inv.number}</GridText> },
-    { key: 'date', label: 'Date', flex: 1.1, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
-    { key: 'termDays', label: 'Terms', width: 38, render: (inv) => <GridText>{String(inv.termDays ?? 0)}</GridText> },
-    { key: 'totalDueDays', label: 'Total Due', width: 42, render: (inv) => <GridText>{String(inv.totalDueDays ?? 0)}</GridText> },
+        { key: 'bookCode', label: 'Book', width: 32, align: 'left' },
+    { key: 'number', label: 'Bill No', flex: 1.1, align: 'left', render: (inv) => <GridText align="left" bold fontSize={showInterest ? 10 : undefined}>{inv.number}</GridText> },
+    { key: 'date', label: 'Date', flex: 1.0, render: (inv) => <GridText>{toDDMMYY(inv.date)}</GridText> },
+    { key: 'termDays', label: 'Terms', width: 35, align: 'right', render: (inv) => <GridText align="right">{String(inv.termDays ?? 0)}</GridText> },
+    { key: 'totalDueDays', label: 'Total Due', width: showInterest ? 28 : 35, render: (inv) => <GridText fontSize={showInterest ? 10 : undefined}>{String(inv.totalDueDays ?? 0)}</GridText> },
     {
-      key: 'dueDays', label: 'Due Days', width: 42,
+      key: 'dueDays', label: 'Due Days', width: showInterest ? 28 : 35,
       render: (inv) => (
         <GridText bold color={-inv.daysLeft > 0 ? Colors.danger : Colors.success}>
           {String(-inv.daysLeft)}
         </GridText>
       ),
     },
-    { key: 'outstanding', label: 'Amount', flex: 1.4, render: (inv) => <GridText>{`₹${inv.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
+    { key: 'outstanding', label: 'Amount', flex: showInterest ? 1.1 : 1.4, render: (inv) => <GridText>{`₹${inv.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}</GridText> },
     ...(showInterest ? [{
       key: 'interest',
       label: 'Interest',
-      flex: 1.3,
+      flex: 1.0,
       render: (inv: any) => <GridText>{`₹ ${interestCalc.calculateBillInterest(inv.outstanding ?? inv.balance ?? inv.netBalance ?? 0, inv.totalDueDays ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`}</GridText>
     }] : [])
   ];
@@ -103,7 +104,37 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
 
   const handleShare = async () => {
     if (!party) return;
-    await Share.share({ message: `Purchase OS\nParty: ${party.name}\nTotal: ${formatCurrency(party.totalOs)}` });
+    const billsToPrint = selectedIds.length > 0 ? selectedInvoices : visibleInvoices;
+    const billAmountTotal = billsToPrint.reduce((sum, inv) => sum + inv.outstanding, 0);
+    const intAmountTotal = Math.round(billsToPrint.reduce((sum, inv) => sum + interestCalc.calculateBillInterest(inv.outstanding, inv.totalDueDays ?? 0), 0));
+    const gst = intAmountTotal * 0.05;
+    const tds = Math.round(intAmountTotal * 0.10);
+    const netInterest = intAmountTotal + gst - tds;
+    const totalSelectedOs = billAmountTotal + netInterest;
+
+    await generateOutstandingReportPDF({
+      title: 'Party Wise Purchase Outstanding Report',
+      companyName: 'VARNI TEXTILE',
+      companyAddress: 'PLOT NO. 147 TO 151,SUNSHINE IND. ESTATE PART-1, NR. SAYAN SUGAR FACTORY, SAYAN, SURAT, GUJARAT, 394130',
+      partyName: party.name,
+      partyAddress: party.city || '',
+      partyBroker: brokerName || 'DIRECT',
+      periodFrom: filter?.fromDate,
+      periodTo: filter?.toDate,
+      date: new Date().toISOString(),
+      invoices: billsToPrint,
+      showInterest,
+      totals: {
+        totalOs: party.totalOs,
+        selectedBillAmount: billAmountTotal,
+        interestAmount: intAmountTotal,
+        gst,
+        tds,
+        netInterest,
+        totalSelectedOs
+      },
+      calculateInterest: showInterest ? interestCalc.calculateBillInterest : undefined
+    });
   };
 
   if (loading || !party) return <LoadingOverlay visible message="Loading..." />;
@@ -112,52 +143,61 @@ export const PurchaseOsPartyDetailScreen: React.FC<Props> = ({ navigation, route
     <View style={styles.container}>
       <GradientHeader title="Purchase O/s (Party Wise)"
         onBack={() => navigation.goBack()}
-        rightElement={
-          <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-            <Icon name="share-variant" size={18} color={Colors.textWhite} />
-          </TouchableOpacity>
-        }
+        rightElement={null}
       />
       <CompanyStrip />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* OG-style summary header: party, address, broker, dates, Total O/s. */}
         <View style={styles.ogSummary}>
-          <Text style={styles.ogParty}>{party.name}</Text>
-          <View style={styles.addressRow}>
-            {party.city ? <Text style={styles.ogAddress}>{party.city}</Text> : <View style={{ flex: 1 }} />}
+          <View style={styles.summaryTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.ogParty} numberOfLines={1}>{party.name}</Text>
+              <Text style={styles.ogAddress} numberOfLines={1}>
+                {party.city ? `${party.city} | ` : ''}Broker: {brokerName || 'DIRECT'}
+              </Text>
+              {filter?.fromDate || filter?.toDate ? (
+                <Text style={styles.ogLine}>
+                  From {toDDMMYY(filter.fromDate)} To {toDDMMYY(filter.toDate)}
+                </Text>
+              ) : null}
+            </View>
             <TouchableOpacity
-              onPress={() => party.phone ? Linking.openURL(`whatsapp://send?phone=91${party.phone}`) : Alert.alert('No Phone', 'No phone number available')}
+              onPress={handleShare}
               activeOpacity={0.8}
               style={styles.waIcon}
             >
-              <Icon name="whatsapp" size={24} color={Colors.success} />
+              <Icon name="file-pdf-box" size={24} color={Colors.gradientStart} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.ogLine}>Broker : {brokerName || 'DIRECT'}</Text>
-          {filter?.fromDate || filter?.toDate ? (
-            <Text style={styles.ogLine}>
-              From {toDDMMYY(filter.fromDate)}   To {toDDMMYY(filter.toDate)}
-            </Text>
-          ) : null}
-          <Text style={styles.ogTotal}>Total O/s : {formatCurrency(party.totalOs)}</Text>
-          <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
-          
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleItem}>
-              <Text style={styles.toggleLabel}>Only Due</Text>
-              <Switch
-                value={activeFilter.onlyDue}
-                onValueChange={(val) => setActiveFilter({ ...activeFilter, onlyDue: val })}
-                style={styles.switch}
-              />
+
+          <View style={styles.summaryBottomRow}>
+            <View>
+              <Text style={styles.ogTotal}>Total O/s: {formatCurrency(party.totalOs)}</Text>
+              <Text style={styles.ogSub}>{party.invoiceCount} bills</Text>
             </View>
-            <View style={styles.toggleItem}>
-              <Text style={styles.toggleLabel}>Show Interest</Text>
-              <Switch
-                value={showInterest}
-                onValueChange={setShowInterest}
-                style={styles.switch}
-              />
+            <View style={styles.compactToggles}>
+              <View style={styles.toggleItem}>
+                <Text style={styles.toggleLabel}>Due</Text>
+                <Switch
+                  value={activeFilter.onlyDue}
+                  onValueChange={(val) => setActiveFilter({ ...activeFilter, onlyDue: val })}
+                  trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                  thumbColor={Colors.surface}
+                  ios_backgroundColor={Colors.gray300}
+                  style={styles.switch}
+                />
+              </View>
+              <View style={styles.toggleItem}>
+                <Text style={styles.toggleLabel}>Interest</Text>
+                <Switch
+                  value={showInterest}
+                  onValueChange={setShowInterest}
+                  trackColor={{ false: Colors.gray300, true: Colors.gradientEnd }}
+                  thumbColor={Colors.surface}
+                  ios_backgroundColor={Colors.gray300}
+                  style={styles.switch}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -234,25 +274,28 @@ const styles = StyleSheet.create({
   phone: { fontSize: Typography.fontSizes.base, color: Colors.textPrimary, fontWeight: Typography.fontWeights.medium },
   // OG-style summary header block (light blue, like the .NET Blue400Accent frame).
   ogSummary: {
-    backgroundColor: '#E7F0FE',
+    backgroundColor: Colors.infoLight,
     marginHorizontal: -Spacing.md,
     marginTop: -Spacing.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
+  summaryTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  summaryBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 },
   ogParty: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
   addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: 2 },
   ogAddress: { flex: 1, fontSize: 10, fontStyle: 'italic', color: Colors.textSecondary },
   waIcon: { padding: 4, backgroundColor: Colors.successLight, borderRadius: 20 },
-  ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 4 },
-  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart, marginTop: 6 },
+  ogLine: { fontSize: Typography.fontSizes.sm, fontWeight: Typography.fontWeights.semiBold, color: Colors.textPrimary, marginTop: 2 },
+  ogTotal: { fontSize: Typography.fontSizes.md, fontWeight: Typography.fontWeights.bold, color: Colors.gradientStart },
   ogSub: { fontSize: Typography.fontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
   
+  compactToggles: { flexDirection: 'row', gap: Spacing.md },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl, marginTop: Spacing.md },
   toggleItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   toggleLabel: { fontSize: Typography.fontSizes.xs, fontWeight: Typography.fontWeights.bold, color: Colors.textPrimary },
-  switch: { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
+  switch: { transform: [{ scaleX: 0.70 }, { scaleY: 0.70 }] },
   invoicesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   // Full-bleed table section: cancels the ScrollView's horizontal padding so the
   // grid uses the entire screen width.
